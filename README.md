@@ -6,12 +6,12 @@ TL;DR: Use several directives like ~a ~{~} and flexible condition and loop contr
 
 Here are several pages for you to have a general idea if you are not familiar with Common Lisp:
 
++ [A Few FORMAT Recipes](https://gigamonkeys.com/book/a-few-format-recipes.html)
++ [Wiki: Format (Common Lisp)](https://en.wikipedia.org/wiki/Format_(Common_Lisp))
+
 *CAUTION: I haven't implemented all format directives yet. I am working on it. See below to find those that have been done.*
 
 *BTW: I am trying to copy the behaviors of the format function of Common Lisp, but there might be some compromises.*
-
-+ [A Few FORMAT Recipes](https://gigamonkeys.com/book/a-few-format-recipes.html)
-+ [Wiki: Format (Common Lisp)](https://en.wikipedia.org/wiki/Format_(Common_Lisp))
 
 - [Usage](#usage)
   - [Use macro](#use-macro)
