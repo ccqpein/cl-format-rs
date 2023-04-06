@@ -15,4 +15,4 @@ lazy_static = "1.4.0"
 syn = { version = "1", features = ["full", "extra-traits"] }
 quote = "1"
 
-cl-format-macros = { path = "../cl-format-macros" }
+cl-format-macros = { version = "0.1", path = "../cl-format-macros" }
