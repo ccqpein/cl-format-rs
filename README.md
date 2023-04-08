@@ -17,7 +17,7 @@ Here are several pages for you to have a general idea if you are not familiar wi
   - [Use macro](#use-macro)
   - [Manually](#manually)
   - [Implement for custom type](#implement-for-custom-type)
-  - [Format directives](#format-directives)
+- [Format directives](#format-directives)
 
 ## Usage ##
 
@@ -232,6 +232,6 @@ This is the table of which directives have been implemented:
 | `~[~]` (normal condition) | bool, usize                                             |
 
 
-### TODO ###
+## TODO ##
 
 + [ ] doc

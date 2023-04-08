@@ -540,6 +540,29 @@ mod tests {
     }
 
     #[test]
+    fn test_reveal_char() -> Result<(), Box<dyn std::error::Error>> {
+        let case = "~c ~C ~@c";
+        let mut cs = ControlStr::new(case)?;
+        dbg!(&cs);
+
+        let arg = Args::from([
+            &'a' as &dyn TildeAble,
+            &'b' as &dyn TildeAble,
+            &'c' as &dyn TildeAble,
+        ]);
+        assert_eq!(
+            vec![
+                Some("a".to_string()),
+                Some("b".to_string()),
+                Some("'c'".to_string())
+            ],
+            parse_test_result(cs.reveal_tildes(arg.into()))?
+        );
+
+        Ok(())
+    }
+
+    #[test]
     fn test_reveal_standard() -> Result<(), Box<dyn std::error::Error>> {
         let case = "~d ~s";
         let mut cs = ControlStr::new(case)?;

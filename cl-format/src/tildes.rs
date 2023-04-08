@@ -7,6 +7,8 @@ use std::fmt::Debug;
 use std::io::{BufRead, Cursor, Read, Seek, SeekFrom};
 use std::ops::Deref;
 
+/// The args for control string to use. Can pop and go back for some
+/// condition reveal.
 #[derive(Debug)]
 pub struct Args<'a> {
     len: usize,
@@ -66,15 +68,6 @@ impl<'a, 's: 'a> From<Vec<&'s dyn TildeAble>> for Args<'a> {
         Self::new(value)
     }
 }
-
-// impl<'a, T> From<&'a [T]> for Args<'a>
-// where
-//     T: TildeAble,
-// {
-//     fn from(value: &'a [T]) -> Self {
-//         Self::new(value.iter().map(|v| v as &dyn TildeAble).collect())
-//     }
-// }
 
 impl<'a, T> From<&T> for Args<'a>
 where
@@ -157,11 +150,17 @@ pub enum StarKind {
 #[derive(Debug)]
 struct TildeNil;
 
+#[derive(Debug, PartialEq, Clone)]
+pub enum CharKind {
+    Nil,
+    At,
+}
+
 #[derive(Debug, PartialEq, TildeAble, Clone)]
 pub enum TildeKind {
     /// ~C ~:C
     #[implTo(char)]
-    Char,
+    Char(CharKind),
 
     /// ~$ ~5$ ~f
     //:= next
@@ -211,7 +210,7 @@ impl TildeKind {
         //dbg!(arg);
         //dbg!(&self);
         match self {
-            TildeKind::Char => {
+            TildeKind::Char(_) => {
                 let a = arg.into_tildekind_char().ok_or::<TildeError>(
                     TildeError::new(ErrorKind::RevealError, "cannot reveal to Va").into(),
                 )?;
@@ -390,10 +389,10 @@ multi_tilde_impl!(TildeKindDigit, [i32, i64, u32, u64, usize], self, {
 /// impl, re-define the format method for over writing the default method
 impl TildeKindChar for char {
     fn format(&self, tkind: &TildeKind) -> Result<Option<String>, Box<dyn std::error::Error>> {
-        if let TildeKind::Char = tkind {
-            Ok(Some(format!("'{}'", self)))
-        } else {
-            Err(TildeError::new(ErrorKind::RevealError, "cannot format to Char").into())
+        match tkind {
+            TildeKind::Char(CharKind::At) => Ok(Some(format!("'{}'", self))),
+            TildeKind::Char(CharKind::Nil) => Ok(Some(format!("{}", self))),
+            _ => Err(TildeError::new(ErrorKind::RevealError, "cannot format to Char").into()),
         }
     }
 }
@@ -809,6 +808,13 @@ impl Tilde {
                     Box::new(Self::parse_standard),
                 );
             }
+            [b'C', ..] | [b'c', ..] | [b'@', b'c' | b'C', ..] => {
+                c.seek(SeekFrom::Current(-buf_offset))?; // back to start
+                return Ok(
+                    #[rustc_box]
+                    Box::new(Self::parse_char),
+                );
+            }
             _ => {
                 return Err(
                     TildeError::new(ErrorKind::ParseError, "cannot find the key tilde").into(),
@@ -1168,7 +1174,7 @@ impl Tilde {
             [b'~', b'*', ..] => {
                 c.seek(SeekFrom::Current(-1))?;
                 Ok(Self {
-                    len: 3,
+                    len: 2,
                     value: TildeKind::Star(StarKind::Skip),
                 })
             }
@@ -1209,6 +1215,31 @@ impl Tilde {
             buf.clear();
         }
         Err(TildeError::new(ErrorKind::ParseError, "cannot find the 's' or 'S'").into())
+    }
+
+    fn parse_char(c: &mut Cursor<&'_ str>) -> Result<Self, Box<dyn std::error::Error>> {
+        let mut char_buf = [0u8; 3]; // three bytes
+        c.read(&mut char_buf)?;
+
+        match char_buf {
+            [b'~', b'@', b'c' | b'C'] => Ok(Self {
+                len: 3,
+                value: TildeKind::Char(CharKind::At),
+            }),
+            [b'~', b'c' | b'C', ..] => {
+                c.seek(SeekFrom::Current(-1))?;
+                Ok(Self {
+                    len: 2,
+                    value: TildeKind::Char(CharKind::Nil),
+                })
+            }
+            _ => {
+                c.seek(SeekFrom::Current(-3))?;
+                return Err(
+                    TildeError::new(ErrorKind::ParseError, "should start with ~c or ~@c").into(),
+                );
+            }
+        }
     }
 
     // more parsers functions below
@@ -1751,7 +1782,7 @@ mod tests {
         let mut case = Cursor::new("~*");
         assert_eq!(
             Tilde::parse(&mut case)?,
-            Tilde::new(3, TildeKind::Star(StarKind::Skip))
+            Tilde::new(2, TildeKind::Star(StarKind::Skip))
         );
         Ok(())
     }
@@ -1779,6 +1810,23 @@ mod tests {
 
         let mut case = Cursor::new("~S");
         assert_eq!(Tilde::parse(&mut case)?, Tilde::new(2, TildeKind::Standard));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_parse_char() -> Result<(), Box<dyn std::error::Error>> {
+        let mut case = Cursor::new("~c");
+        assert_eq!(
+            Tilde::parse(&mut case)?,
+            Tilde::new(2, TildeKind::Char(CharKind::Nil))
+        );
+
+        let mut case = Cursor::new("~@c");
+        assert_eq!(
+            Tilde::parse(&mut case)?,
+            Tilde::new(3, TildeKind::Char(CharKind::At))
+        );
 
         Ok(())
     }
