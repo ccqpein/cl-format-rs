@@ -31,6 +31,7 @@ macro_rules! multi_tilde_impl {
     };
 }
 
+/// add the &dyn TildeAble to the expr
 #[macro_export]
 macro_rules! tilde {
     ($arg:expr) => {

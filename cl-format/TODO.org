@@ -8,6 +8,7 @@
 * Features need to do
 ** TODO Tilde parsers
 - [X] \~n~ [[http://www.lispworks.com/documentation/lw50/CLHS/Body/22_cae.htm][tilde]]
+- [X] char
 - [ ] [[http://www.lispworks.com/documentation/lw50/CLHS/Body/22_cba.htm][R: Radix]]
 - [ ] [[http://www.lispworks.com/documentation/lw50/CLHS/Body/22_cbc.htm][B: Binary]]
 - [ ] [[http://www.lispworks.com/documentation/lw50/CLHS/Body/22_cbd.htm][O: Octal]]

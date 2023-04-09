@@ -1,10 +1,7 @@
 use crate::tildes::*;
-use std::cell::RefCell;
-use std::collections::VecDeque;
 use std::convert::{TryFrom, TryInto};
-use std::fmt::{Debug, Display};
-use std::io::{BufRead, Cursor, Read, Seek, SeekFrom};
-use std::iter;
+use std::fmt::Debug;
+use std::io::{BufRead, Cursor, Seek, SeekFrom};
 
 /// the control string should including:
 /// 1. the whole string
@@ -99,7 +96,7 @@ impl<'a> TryFrom<&'a str> for ControlStr<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::tilde;
+    //use crate::tildes::*;
 
     use super::*;
 
