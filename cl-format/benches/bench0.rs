@@ -2,7 +2,7 @@
 
 extern crate test;
 
-use std::{collections::VecDeque, fmt::Display};
+use std::collections::VecDeque;
 
 use cl_format::*;
 use test::Bencher;
@@ -15,6 +15,11 @@ pub fn cl_format_macro_make_string(l: &Vec<&dyn TildeAble>) -> String {
         l
     )
     .unwrap()
+}
+
+pub fn cl_format_make_string(control_str: &ControlStr, l: &Vec<&dyn TildeAble>) -> String {
+    let args = Args::new(vec![l]);
+    control_str.reveal(args).unwrap()
 }
 
 pub fn loop_making_string(l: &Vec<&str>) -> String {
@@ -83,9 +88,17 @@ fn test_result_are_same() {
 }
 
 #[bench]
-fn bench_cl_format_making_loop_string(b: &mut Bencher) {
+fn bench_cl_format_macro_making_loop_string(b: &mut Bencher) {
     let list0 = vec![];
     b.iter(move || cl_format_macro_make_string(&list0));
+}
+
+#[bench]
+fn bench_cl_format_making_loop_string(b: &mut Bencher) {
+    let list0 = vec![];
+    let control_str =
+        ControlStr::from("~{~#[empty~;~a~;~a and ~a~:;~@{~a~#[~;, and ~:;, ~]~}~]~:}").unwrap();
+    b.iter(move || cl_format_make_string(&control_str, &list0));
 }
 
 #[bench]
