@@ -2,7 +2,7 @@ use super::*;
 
 /// The args for control string to use. Can pop and go back for some
 /// condition reveal.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Args<'a> {
     len: usize,
     inner: Vec<&'a dyn TildeAble>,
