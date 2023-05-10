@@ -4,7 +4,7 @@ use cl_format_macros::TildeAble;
 use std::fmt::Debug;
 
 #[derive(Debug)]
-pub(super) struct TildeError {
+pub struct TildeError {
     kind: ErrorKind,
     msg: String,
 }
@@ -30,6 +30,8 @@ impl std::fmt::Display for TildeError {
 pub(super) enum ErrorKind {
     ParseError,
     RevealError,
+    EmptyImplenmentError,
+    FormatError,
 }
 
 #[derive(Debug, PartialEq, Clone)]
@@ -118,10 +120,7 @@ pub enum TildeKind {
 }
 
 impl TildeKind {
-    pub fn match_reveal(
-        &self,
-        arg: &dyn TildeAble,
-    ) -> Result<Option<String>, Box<dyn std::error::Error>> {
+    pub fn match_reveal(&self, arg: &dyn TildeAble) -> Result<Option<String>, TildeError> {
         //dbg!(arg);
         //dbg!(&self);
         match self {
@@ -163,7 +162,11 @@ impl TildeKind {
             TildeKind::LoopEnd => {
                 Err(TildeError::new(ErrorKind::RevealError, "loop end cannot reveal").into())
             }
-            TildeKind::Tildes(n) => Ok(Some(String::from_utf8(vec![b'~'; *n])?)),
+            TildeKind::Tildes(n) => {
+                Ok(Some(String::from_utf8(vec![b'~'; *n]).map_err(|e| {
+                    TildeError::new(ErrorKind::RevealError, e.to_string())
+                })?))
+            }
             TildeKind::Text(s) => Ok(Some(s.to_string())),
             TildeKind::VecTilde(_) => {
                 let a = arg.into_tildekind_vectilde().ok_or::<TildeError>(

@@ -61,13 +61,13 @@ impl TildeAble for MyStruct {
 }
 
 impl TildeKindVa for MyStruct {
-    fn format(&self, tkind: &TildeKind) -> Result<Option<String>, Box<dyn std::error::Error>> {
+    fn format(&self, tkind: &TildeKind) -> Result<Option<String>, TildeError> {
         Ok(Some(format!("a: {}, b: {}", self.a, self.b)))
     }
 }
 
 impl TildeKindDigit for MyStruct {
-    fn format(&self, tkind: &TildeKind) -> Result<Option<String>, Box<dyn std::error::Error>> {
+    fn format(&self, tkind: &TildeKind) -> Result<Option<String>, TildeError> {
         Ok(Some(format!("{}", self.a)))
     }
 }
