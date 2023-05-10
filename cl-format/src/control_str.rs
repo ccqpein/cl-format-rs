@@ -57,16 +57,11 @@ impl<'a> ControlStr<'a> {
 
     fn reveal_tildes<'s, 'cs>(
         &'cs self,
-        args: Args<'s>,
-    ) -> impl Iterator<
-        Item = (
-            &'cs (usize, usize),
-            Result<Option<String>, Box<dyn std::error::Error + 's>>,
-        ),
-    > {
+        args: &'cs Args<'s>,
+    ) -> impl Iterator<Item = (&'cs (usize, usize), Result<Option<String>, TildeError>)> + 'cs {
         self.tildes
             .iter()
-            .map(move |(ind, tilde)| (ind, tilde.reveal(&args)))
+            .map(move |(ind, tilde)| (ind, tilde.reveal(args)))
     }
 
     pub fn reveal<'s>(&self, args: Args<'s>) -> Result<String, Box<dyn std::error::Error + 's>> {
@@ -74,9 +69,9 @@ impl<'a> ControlStr<'a> {
         let mut start = 0;
         let end = self.inner.len();
 
-        for (r, s) in self.reveal_tildes(args) {
+        for (r, s) in self.reveal_tildes(&args) {
             result += &self.inner[start..r.0];
-            result += &s?.unwrap_or("".to_string());
+            result += &s?.unwrap_or("".to_string()); //:= s? need return error
             start = r.1;
         }
 
@@ -101,12 +96,7 @@ mod tests {
     use super::*;
 
     fn parse_test_result<'x, 's>(
-        a: impl Iterator<
-            Item = (
-                &'x (usize, usize),
-                Result<Option<String>, Box<dyn std::error::Error + 's>>,
-            ),
-        >,
+        a: impl Iterator<Item = (&'x (usize, usize), Result<Option<String>, TildeError>)>,
     ) -> Result<Vec<Option<String>>, String> {
         let mut x = vec![];
         for (_, aa) in a {
@@ -167,9 +157,9 @@ mod tests {
     }
 
     #[test]
-    fn test_reveal_normal_tildes() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_reveal_normal_tildes() -> Result<(), String> {
         let case = "hello wor~a";
-        let mut cs = ControlStr::new(case)?;
+        let mut cs = ControlStr::new(case).map_err(|e| e.to_string())?;
         let arg: &dyn TildeAble = &13_f32;
         dbg!(arg.into_tildekind_va());
 
@@ -178,7 +168,10 @@ mod tests {
             .map(|s| Some(s))
             .collect();
 
-        assert_eq!(result, parse_test_result(cs.reveal_tildes([arg].into()))?);
+        assert_eq!(
+            result,
+            parse_test_result(cs.reveal_tildes(&([arg].into()))).map_err(|e| e.to_string())?
+        );
 
         Ok(())
     }
@@ -205,7 +198,7 @@ mod tests {
             .map(|s| Some(s))
             .collect();
 
-        assert_eq!(result, parse_test_result(cs.reveal_tildes(arg.into()))?);
+        assert_eq!(result, parse_test_result(cs.reveal_tildes(&(arg.into())))?);
 
         let case = "hello, ~@{~a~^, ~}";
         let cs = ControlStr::new(case)?;
@@ -214,7 +207,7 @@ mod tests {
             .into_iter()
             .map(|s| Some(s))
             .collect();
-        assert_eq!(result, parse_test_result(cs.reveal_tildes(arg.into()))?);
+        assert_eq!(result, parse_test_result(cs.reveal_tildes(&(arg.into())))?);
 
         let case = "hello, ~{~a~^, ~}";
         let cs = ControlStr::new(case)?;
@@ -234,7 +227,7 @@ mod tests {
             .into_iter()
             .map(|s| Some(s))
             .collect();
-        assert_eq!(result, parse_test_result(cs.reveal_tildes(arg.into()))?);
+        assert_eq!(result, parse_test_result(cs.reveal_tildes(&(arg.into())))?);
         Ok(())
     }
 
@@ -251,7 +244,7 @@ mod tests {
                 .into_iter()
                 .map(|s| Some(s))
                 .collect::<Vec<Option<_>>>(),
-            parse_test_result(cs.reveal_tildes(arg.into()))?
+            parse_test_result(cs.reveal_tildes(&(arg.into())))?
         );
 
         //
@@ -261,7 +254,7 @@ mod tests {
                 .into_iter()
                 .map(|s| Some(s))
                 .collect::<Vec<Option<_>>>(),
-            parse_test_result(cs.reveal_tildes(arg.into()))?
+            parse_test_result(cs.reveal_tildes(&(arg.into())))?
         );
 
         //
@@ -275,7 +268,7 @@ mod tests {
                 .into_iter()
                 .map(|s| Some(s))
                 .collect::<Vec<Option<_>>>(),
-            parse_test_result(cs.reveal_tildes(arg.into()))?
+            parse_test_result(cs.reveal_tildes(&(arg.into())))?
         );
 
         let arg: Vec<&dyn TildeAble> = vec![&2_usize];
@@ -284,7 +277,7 @@ mod tests {
                 .into_iter()
                 .map(|s| Some(s))
                 .collect::<Vec<Option<_>>>(),
-            parse_test_result(cs.reveal_tildes(arg.into()))?
+            parse_test_result(cs.reveal_tildes(&(arg.into())))?
         );
 
         //dbg!(&cs);
@@ -294,7 +287,7 @@ mod tests {
                 .into_iter()
                 .map(|s| Some(s))
                 .collect::<Vec<Option<_>>>(),
-            parse_test_result(cs.reveal_tildes(arg.into()))?
+            parse_test_result(cs.reveal_tildes(&(arg.into())))?
         );
 
         //dbg!(&cs);
@@ -304,7 +297,7 @@ mod tests {
                 .into_iter()
                 .map(|s| Some(s))
                 .collect::<Vec<Option<_>>>(),
-            parse_test_result(cs.reveal_tildes(arg.into()))?
+            parse_test_result(cs.reveal_tildes(&(arg.into())))?
         );
 
         let arg: Vec<&dyn TildeAble> = vec![&100_usize];
@@ -313,7 +306,7 @@ mod tests {
                 .into_iter()
                 .map(|s| Some(s))
                 .collect::<Vec<Option<_>>>(),
-            parse_test_result(cs.reveal_tildes(arg.into()))?
+            parse_test_result(cs.reveal_tildes(&(arg.into())))?
         );
 
         let case = "~#[NONE~;first: ~a~;~a and ~a~:;~a, ~a~]";
@@ -325,7 +318,7 @@ mod tests {
                 .into_iter()
                 .map(|s| Some(s))
                 .collect::<Vec<Option<_>>>(),
-            parse_test_result(cs.reveal_tildes(args.into()))?
+            parse_test_result(cs.reveal_tildes(&(args.into())))?
         );
 
         let mut cs = ControlStr::new(case)?;
@@ -336,7 +329,7 @@ mod tests {
                 .into_iter()
                 .map(|s| Some(s))
                 .collect::<Vec<Option<_>>>(),
-            parse_test_result(cs.reveal_tildes(args.into()))?
+            parse_test_result(cs.reveal_tildes(&(args.into())))?
         );
 
         let mut cs = ControlStr::new(case)?;
@@ -347,7 +340,7 @@ mod tests {
                 .into_iter()
                 .map(|s| Some(s))
                 .collect::<Vec<Option<_>>>(),
-            parse_test_result(cs.reveal_tildes(args.into()))?
+            parse_test_result(cs.reveal_tildes(&(args.into())))?
         );
 
         Ok(())
@@ -362,7 +355,7 @@ mod tests {
         let arg: Vec<&dyn TildeAble> = vec![];
         assert_eq!(
             vec![Some("NONE".to_string()), Some("".to_string())],
-            parse_test_result(cs.reveal_tildes(arg.into()))?
+            parse_test_result(cs.reveal_tildes(&(arg.into())))?
         );
 
         Ok(())
@@ -377,7 +370,7 @@ mod tests {
         let arg: Vec<&dyn TildeAble> = vec![&Some(&1_i64 as &dyn TildeAble), &None];
         assert_eq!(
             vec![Some("x = 1 ".to_string()), None],
-            parse_test_result(cs.reveal_tildes(arg.into()))?
+            parse_test_result(cs.reveal_tildes(&(arg.into())))?
         );
 
         let case = "~@[x = ~a ~]~@[y = ~a~]";
@@ -391,7 +384,7 @@ mod tests {
                 .into_iter()
                 .map(|s| Some(s))
                 .collect::<Vec<Option<_>>>(),
-            parse_test_result(cs.reveal_tildes(arg.into()))?
+            parse_test_result(cs.reveal_tildes(&(arg.into())))?
         );
 
         Ok(())
@@ -409,7 +402,7 @@ mod tests {
 
         assert_eq!(
             vec![Some("1, and 2".to_string())],
-            parse_test_result(cs.reveal_tildes(arg.into()))?
+            parse_test_result(cs.reveal_tildes(&(arg.into())))?
         );
 
         //
@@ -422,7 +415,10 @@ mod tests {
         let a: Vec<&dyn TildeAble> = vec![];
         //let aa = vec![&a as &dyn TildeAble];
         let arg: Vec<&dyn TildeAble> = vec![&a];
-        assert_eq!(vec![None], parse_test_result(cs.reveal_tildes(arg.into()))?);
+        assert_eq!(
+            vec![None],
+            parse_test_result(cs.reveal_tildes(&(arg.into())))?
+        );
 
         let mut cs = ControlStr::new(case)?;
         let a = vec![&1_i64 as &dyn TildeAble];
@@ -433,7 +429,7 @@ mod tests {
                 .into_iter()
                 .map(|s| Some(s))
                 .collect::<Vec<Option<_>>>(),
-            parse_test_result(cs.reveal_tildes(arg.into()))?
+            parse_test_result(cs.reveal_tildes(&(arg.into())))?
         );
 
         let mut cs = ControlStr::new(case)?;
@@ -445,7 +441,7 @@ mod tests {
                 .into_iter()
                 .map(|s| Some(s))
                 .collect::<Vec<Option<_>>>(),
-            parse_test_result(cs.reveal_tildes(arg.into()))?
+            parse_test_result(cs.reveal_tildes(&(arg.into())))?
         );
 
         let mut cs = ControlStr::new(case)?;
@@ -457,7 +453,7 @@ mod tests {
                 .into_iter()
                 .map(|s| Some(s))
                 .collect::<Vec<Option<_>>>(),
-            parse_test_result(cs.reveal_tildes(arg.into()))?
+            parse_test_result(cs.reveal_tildes(&(arg.into())))?
         );
 
         let mut cs = ControlStr::new(case)?;
@@ -469,7 +465,7 @@ mod tests {
                 .into_iter()
                 .map(|s| Some(s))
                 .collect::<Vec<Option<_>>>(),
-            parse_test_result(cs.reveal_tildes(arg.into()))?
+            parse_test_result(cs.reveal_tildes(&(arg.into())))?
         );
 
         let mut cs = ControlStr::new(case)?;
@@ -481,7 +477,7 @@ mod tests {
                 .into_iter()
                 .map(|s| Some(s))
                 .collect::<Vec<Option<_>>>(),
-            parse_test_result(cs.reveal_tildes(arg.into()))?
+            parse_test_result(cs.reveal_tildes(&(arg.into())))?
         );
 
         let case = "~{~#[empty~;~a~;~a and ~a~:;~@{~a~#[~;, and ~:;, ~]~}~]~}";
@@ -489,7 +485,10 @@ mod tests {
         let a = vec![];
         //let a = Args::new(vec![]);
         let arg: Vec<&dyn TildeAble> = vec![&a];
-        assert_eq!(vec![None], parse_test_result(cs.reveal_tildes(arg.into()))?);
+        assert_eq!(
+            vec![None],
+            parse_test_result(cs.reveal_tildes(&(arg.into())))?
+        );
 
         let case = "~{~#[empty~;~a~;~a and ~a~:;~@{~a~#[~;, and ~:;, ~]~}~]~:}";
         let mut cs = ControlStr::new(case)?;
@@ -499,7 +498,7 @@ mod tests {
                 .into_iter()
                 .map(|s| Some(s))
                 .collect::<Vec<Option<_>>>(),
-            parse_test_result(cs.reveal_tildes(arg.into()))?
+            parse_test_result(cs.reveal_tildes(&(arg.into())))?
         );
 
         Ok(())
@@ -514,7 +513,7 @@ mod tests {
         let arg = Args::from([&1_i64 as &dyn TildeAble]);
         assert_eq!(
             vec![Some("1".to_string()), None, Some("1".to_string())],
-            parse_test_result(cs.reveal_tildes(arg.into()))?
+            parse_test_result(cs.reveal_tildes(&(arg.into())))?
         );
 
         //
@@ -530,7 +529,7 @@ mod tests {
                 .into_iter()
                 .map(|s| Some(s))
                 .collect::<Vec<Option<_>>>(),
-            parse_test_result(cs.reveal_tildes(arg.into()))?
+            parse_test_result(cs.reveal_tildes(&(arg.into())))?
         );
 
         Ok(())
@@ -553,7 +552,7 @@ mod tests {
                 Some("b".to_string()),
                 Some("'c'".to_string())
             ],
-            parse_test_result(cs.reveal_tildes(arg.into()))?
+            parse_test_result(cs.reveal_tildes(&(arg.into())))?
         );
 
         Ok(())
@@ -570,7 +569,7 @@ mod tests {
 
         assert_eq!(
             vec![Some("1".to_string()), Some("\"hello\"".to_string())],
-            parse_test_result(cs.reveal_tildes(arg.into()))?
+            parse_test_result(cs.reveal_tildes(&(arg.into())))?
         );
         Ok(())
     }

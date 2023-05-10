@@ -33,10 +33,7 @@ impl Tilde {
         self.len
     }
 
-    pub fn reveal(
-        &self,
-        arg: &dyn TildeAble,
-    ) -> Result<Option<String>, Box<dyn std::error::Error>> {
+    pub fn reveal(&self, arg: &dyn TildeAble) -> Result<Option<String>, TildeError> {
         self.value.match_reveal(arg)
     }
 

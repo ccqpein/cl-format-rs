@@ -29,3 +29,18 @@ CLOSED: [2023-03-18 Sat 23:03]
   reveal functions done the reveal job
 :END:
 after parse, the tilde need a view layer.
+
+** PROCESSING Optimize
+
+*** DONE Change the box error to error type
+CLOSED: [2023-05-02 Tue 18:29]
+:LOGBOOK:
+- State "DONE"       from              [2023-05-02 Tue 18:29]
+:END:
+
+*** NEXT ~control_str::reveal~ need to accept borrow args
+and also need to return error directly
+good for benchmark test
+
+*** NEXT ~match_reveal~ need return Option type or not?
+I can just call the format? Like ~<a as TildeKindVa>::format()~?
