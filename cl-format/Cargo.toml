@@ -10,9 +10,8 @@ readme = "../README.md"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[dependencies]
-lazy_static = "1.4.0"
-syn = { version = "1", features = ["full", "extra-traits"] }
-quote = "1"
+[lib]
+bench = false
 
+[dependencies]
 cl-format-macros = { version = "0.1", path = "../cl-format-macros" }

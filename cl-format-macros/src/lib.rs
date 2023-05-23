@@ -130,7 +130,7 @@ pub fn derive_tilde_able(input: TokenStream) -> TokenStream {
 					}})
                 });
 
-                //
+                //				
                 return_types_traits.push(quote! {
                     pub trait #return_type: Debug {
                         fn format(&self, tkind: &TildeKind) -> Result<Option<String>, TildeError> {
@@ -169,6 +169,90 @@ pub fn derive_tilde_able(input: TokenStream) -> TokenStream {
     // merge together
     result.push(tilde_able_trait);
     result.append(&mut auto_impl_for_types);
+    result.append(&mut return_types_traits);
+
+    proc_macro2::TokenStream::from_iter(result.into_iter()).into()
+}
+
+/// new macro for optimizing
+/// Give different methods to trait rahter than all same format
+#[proc_macro_derive(TildeAble2, attributes(implTo))]
+pub fn derive_tilde_able_2(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+
+    //let mut all_methods_headers = vec![];
+    let mut return_types_traits = vec![];
+    //let mut all_default_methods = vec![];
+    //let mut types_impl_methods = HashMap::new();
+
+    match input.data {
+        Data::Enum(DataEnum { ref variants, .. }) => {
+            let all_vars = variants.iter().map(|var| parse_variant_attrs(var));
+
+            all_vars.for_each(|(field, tys)| {
+                // let fname = Ident::new(
+                //     &(String::from("into_tildekind_") + &field.to_lowercase()),
+                //     Span::call_site(),
+                // );
+
+                let return_type =
+                    Ident::new(&(String::from("TildeKind") + &field), Span::call_site());
+
+                // add default methods to TildeAble
+                // all_default_methods
+                //     .push(quote! {
+				// 		fn #fname(&self) -> Option<&dyn #return_type> {
+				// 			None
+				// 		}});
+
+                // impl for types
+                // tys.for_each(|ty| {
+                //     let en = types_impl_methods.entry(ty).or_insert(vec![]);
+                //     en.push(quote! {fn #fname(&self) -> Option<&dyn #return_type> {
+				// 		Some(self)
+				// 	}})
+                // });
+
+                //
+				let method_name = Ident::new(&(String::from("format_to_") + &field.to_lowercase()), Span::call_site());
+                return_types_traits.push(quote! {
+                    pub trait #return_type: Debug { //:= TODO: change this name
+                        fn #method_name(&self, tkind: &TildeKind) -> Result<Option<String>, TildeError> { //:= TODO: also change this name
+                            Err(TildeError::new(ErrorKind::EmptyImplenmentError, "haven't implenmented yet").into(),)
+                        }
+                }})
+            });
+        }
+        _ => panic!("only support the enum"),
+    };
+
+    let mut result = vec![];
+
+    // trait TildeAble defination
+    // let tilde_able_trait = quote! {
+    //     pub trait TildeAble:Debug {
+    //         fn len(&self) -> usize;
+    //         #(#all_default_methods)*
+    //     }
+    // };
+
+    // let mut auto_impl_for_types = types_impl_methods
+    //     .iter()
+    //     .map(|(ty, methods)| {
+    //         quote! {
+    //             impl TildeAble for #ty {
+    //                 fn len(&self) -> usize {
+    //                     1
+    //                 }
+    //                 #(#methods)*
+    //             }
+    //         }
+    //     })
+    //     .collect();
+
+    // merge together
+    //result.push(tilde_able_trait);
+    //result.append(&mut auto_impl_for_types);
     result.append(&mut return_types_traits);
 
     proc_macro2::TokenStream::from_iter(result.into_iter()).into()

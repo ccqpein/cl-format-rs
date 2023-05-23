@@ -47,15 +47,12 @@ impl Tilde {
     fn scan_for_kind(
         c: &mut Cursor<&'_ str>,
     ) -> Result<
-        Box<
-            dyn for<'a, 'b> Fn(
-                &'a mut std::io::Cursor<&'b str>,
-            ) -> Result<Tilde, Box<dyn std::error::Error>>,
-        >,
-        Box<dyn std::error::Error>,
+        Box<dyn for<'a, 'b> Fn(&'a mut std::io::Cursor<&'b str>) -> Result<Tilde, TildeError>>,
+        TildeError,
     > {
         let mut buf = [0u8; 1];
-        c.read(&mut buf)?;
+        c.read(&mut buf)
+            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
         if buf[0] != b'~' {
             return Err(TildeError::new(ErrorKind::ParseError, "should start with ~").into());
         }
@@ -63,7 +60,8 @@ impl Tilde {
         // read until the tilde key char
         let mut buf = [0_u8; 3];
         let mut buf_offset = 1;
-        c.read(&mut buf)?;
+        c.read(&mut buf)
+            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
         for b in buf {
             if b == 0_u8 {
                 break;
@@ -77,49 +75,56 @@ impl Tilde {
 
         match buf {
             [b'a', ..] | [b'A', ..] => {
-                c.seek(SeekFrom::Current(-buf_offset))?; // back to start
+                c.seek(SeekFrom::Current(-buf_offset))
+                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
                 return Ok(
                     #[rustc_box]
                     Box::new(Self::parse_value),
                 );
             }
             [b'{', ..] | [b'@', b'{', ..] => {
-                c.seek(SeekFrom::Current(-buf_offset))?; // back to start
+                c.seek(SeekFrom::Current(-buf_offset))
+                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
                 return Ok(
                     #[rustc_box]
                     Box::new(Self::parse_loop),
                 );
             }
             [b'$', ..] | [b'f' | b'F', ..] | [_, b'$', ..] => {
-                c.seek(SeekFrom::Current(-buf_offset))?; // back to start
+                c.seek(SeekFrom::Current(-buf_offset))
+                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
                 return Ok(
                     #[rustc_box]
                     Box::new(Self::parse_float),
                 );
             }
             [b'd', ..] | [b'D', ..] => {
-                c.seek(SeekFrom::Current(-buf_offset))?; // back to start
+                c.seek(SeekFrom::Current(-buf_offset))
+                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
                 return Ok(
                     #[rustc_box]
                     Box::new(Self::parse_digit),
                 );
             }
             [b'[', ..] | [b'#' | b':' | b'@', b'[', ..] => {
-                c.seek(SeekFrom::Current(-buf_offset))?; // back to start
+                c.seek(SeekFrom::Current(-buf_offset))
+                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
                 return Ok(
                     #[rustc_box]
                     Box::new(Self::parse_cond),
                 );
             }
             [b'^', ..] => {
-                c.seek(SeekFrom::Current(-buf_offset))?; // back to start
+                c.seek(SeekFrom::Current(-buf_offset))
+                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
                 return Ok(
                     #[rustc_box]
                     Box::new(Self::parse_loop_end),
                 );
             }
             [b':', b'*', ..] | [b'*', ..] => {
-                c.seek(SeekFrom::Current(-buf_offset))?; // back to start
+                c.seek(SeekFrom::Current(-buf_offset))
+                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
                 return Ok(
                     #[rustc_box]
                     Box::new(Self::parse_star),
@@ -127,21 +132,24 @@ impl Tilde {
             }
             [_, b'~', ..] => {
                 //:= can only parse the one digit number
-                c.seek(SeekFrom::Current(-buf_offset))?; // back to start
+                c.seek(SeekFrom::Current(-buf_offset))
+                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
                 return Ok(
                     #[rustc_box]
                     Box::new(Self::parse_tildes),
                 );
             }
             [b'S', ..] | [b's', ..] => {
-                c.seek(SeekFrom::Current(-buf_offset))?; // back to start
+                c.seek(SeekFrom::Current(-buf_offset))
+                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
                 return Ok(
                     #[rustc_box]
                     Box::new(Self::parse_standard),
                 );
             }
             [b'C', ..] | [b'c', ..] | [b'@', b'c' | b'C', ..] => {
-                c.seek(SeekFrom::Current(-buf_offset))?; // back to start
+                c.seek(SeekFrom::Current(-buf_offset))
+                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
                 return Ok(
                     #[rustc_box]
                     Box::new(Self::parse_char),
@@ -156,23 +164,25 @@ impl Tilde {
     }
 
     /// cursor should located on '~'
-    pub fn parse(c: &mut Cursor<&'_ str>) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn parse(c: &mut Cursor<&'_ str>) -> Result<Self, TildeError> {
         //dbg!(&c);
         let parser = Self::scan_for_kind(c)?;
         parser(c)
     }
 
     /// parse function for '~{~}'
-    fn parse_loop(c: &mut Cursor<&'_ str>) -> Result<Self, Box<dyn std::error::Error>> {
+    fn parse_loop(c: &mut Cursor<&'_ str>) -> Result<Self, TildeError> {
         let mut char_buf = [0u8; 3]; // three bytes
-        c.read(&mut char_buf)?;
+        c.read(&mut char_buf)
+            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
 
         let mut loop_kind = TildeLoopKind::Nil;
         let mut total_len = 0;
         match char_buf {
             [b'~', b'{', ..] => {
                 total_len += 2;
-                c.seek(SeekFrom::Current(-1))?;
+                c.seek(SeekFrom::Current(-1))
+                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
             }
             [b'~', b'@', b'{'] => {
                 total_len += 3;
@@ -180,7 +190,8 @@ impl Tilde {
             }
 
             _ => {
-                c.seek(SeekFrom::Current(-3))?;
+                c.seek(SeekFrom::Current(-3))
+                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
                 return Err(TildeError::new(ErrorKind::ParseError, "should start with ~{").into());
             }
         }
@@ -191,31 +202,43 @@ impl Tilde {
 
         loop {
             // read text until the next '~'
-            c.read_until(b'~', &mut buf)?;
+            c.read_until(b'~', &mut buf)
+                .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
 
             match buf.as_slice() {
                 [b'~'] => {
-                    c.seek(SeekFrom::Current(-1))?;
+                    c.seek(SeekFrom::Current(-1))
+                        .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
                 }
                 [.., b'~'] => {
-                    c.seek(SeekFrom::Current(-1))?;
+                    c.seek(SeekFrom::Current(-1))
+                        .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
                     result.push(Tilde::new(
                         buf.len() - 1,
-                        TildeKind::Text(String::from_utf8(buf[..buf.len() - 1].to_vec())?),
+                        TildeKind::Text(
+                            String::from_utf8(buf[..buf.len() - 1].to_vec()).map_err(|e| {
+                                TildeError::new(ErrorKind::ParseError, e.to_string())
+                            })?,
+                        ),
                     ));
                     total_len += buf.len() - 1;
                 }
                 [..] => {
                     result.push(Tilde::new(
                         buf.len() - 1,
-                        TildeKind::Text(String::from_utf8(buf[..buf.len() - 1].to_vec())?),
+                        TildeKind::Text(
+                            String::from_utf8(buf[..buf.len() - 1].to_vec()).map_err(|e| {
+                                TildeError::new(ErrorKind::ParseError, e.to_string())
+                            })?,
+                        ),
                     ));
                     total_len += buf.len();
                     return Ok(Tilde::new(total_len, TildeKind::Loop((result, loop_kind))));
                 }
             }
 
-            c.read(&mut char_buf)?;
+            c.read(&mut char_buf)
+                .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
 
             match char_buf {
                 [b'~', b'}', 0] => {
@@ -225,7 +248,8 @@ impl Tilde {
                     ));
                 }
                 [b'~', b'}', ..] => {
-                    c.seek(SeekFrom::Current(-1))?;
+                    c.seek(SeekFrom::Current(-1))
+                        .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
                     return Ok(Tilde::new(
                         total_len + 2,
                         TildeKind::Loop((result, loop_kind)),
@@ -246,7 +270,8 @@ impl Tilde {
                 }
                 _ => {
                     let back = 3 - char_buf.iter().filter(|b| **b == 0).count() as i64;
-                    c.seek(SeekFrom::Current(-back))?;
+                    c.seek(SeekFrom::Current(-back))
+                        .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
                 }
             }
 
@@ -260,11 +285,13 @@ impl Tilde {
     }
 
     /// parse the ~^ in loop
-    fn parse_loop_end(c: &mut Cursor<&'_ str>) -> Result<Self, Box<dyn std::error::Error>> {
+    fn parse_loop_end(c: &mut Cursor<&'_ str>) -> Result<Self, TildeError> {
         let mut char_buf = [0u8; 2]; // three bytes
-        c.read(&mut char_buf)?;
+        c.read(&mut char_buf)
+            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
         if char_buf != *b"~^" {
-            c.seek(SeekFrom::Current(-2))?;
+            c.seek(SeekFrom::Current(-2))
+                .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
             return Err(TildeError::new(ErrorKind::ParseError, "should start with ~^").into());
         }
 
@@ -275,17 +302,19 @@ impl Tilde {
     }
 
     /// parse the '~[~]'
-    fn parse_cond(c: &mut Cursor<&'_ str>) -> Result<Self, Box<dyn std::error::Error>> {
+    fn parse_cond(c: &mut Cursor<&'_ str>) -> Result<Self, TildeError> {
         let mut char_buf = [0u8; 3]; // three bytes
         let mut total_len = 0;
         let mut cond_kind;
-        c.read(&mut char_buf)?;
+        c.read(&mut char_buf)
+            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
 
         match char_buf {
             [b'~', b'[', ..] => {
                 total_len += 2;
                 cond_kind = TildeCondKind::Nil(false);
-                c.seek(SeekFrom::Current(-1))?;
+                c.seek(SeekFrom::Current(-1))
+                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
             }
             [b'~', b'#', b'['] => {
                 total_len += 3;
@@ -300,7 +329,8 @@ impl Tilde {
                 cond_kind = TildeCondKind::Colon;
             }
             _ => {
-                c.seek(SeekFrom::Current(-3))?;
+                c.seek(SeekFrom::Current(-3))
+                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
                 return Err(TildeError::new(
                     ErrorKind::ParseError,
                     "should start with ~[, ~#[, ~@[",
@@ -316,7 +346,8 @@ impl Tilde {
         let mut result: Vec<Tilde> = vec![];
 
         loop {
-            c.read_exact(&mut one_byte)?;
+            c.read_exact(&mut one_byte)
+                .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
             if one_byte == [0] {
                 break;
             }
@@ -325,17 +356,23 @@ impl Tilde {
                 if !buffer.is_empty() {
                     cache.push(Tilde {
                         len: buffer.len(),
-                        value: TildeKind::Text(String::from_utf8(buffer.clone())?),
+                        value: TildeKind::Text(
+                            String::from_utf8(buffer.clone()).map_err(|e| {
+                                TildeError::new(ErrorKind::ParseError, e.to_string())
+                            })?,
+                        ),
                     });
                     buffer.clear();
                 }
 
                 one_byte[0] = 0;
-                c.read_exact(&mut one_byte)?;
+                c.read_exact(&mut one_byte)
+                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
                 match one_byte {
                     [b':'] => {
                         one_byte[0] = 0;
-                        c.read_exact(&mut one_byte)?;
+                        c.read_exact(&mut one_byte)
+                            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
                         if one_byte == [b';'] {
                             let cache_len = cache.iter().map(|t: &Tilde| t.len()).sum::<usize>();
                             result.push(Tilde::new(cache_len, TildeKind::VecTilde(cache.clone())));
@@ -359,7 +396,8 @@ impl Tilde {
                         break;
                     }
                     _ => {
-                        c.seek(SeekFrom::Current(-2))?;
+                        c.seek(SeekFrom::Current(-2))
+                            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
                         let c = Self::parse(c)?;
                         cache.push(c);
                     }
@@ -427,55 +465,64 @@ impl Tilde {
     }
 
     /// parse function for '~a'
-    fn parse_value(c: &mut Cursor<&'_ str>) -> Result<Self, Box<dyn std::error::Error>> {
+    fn parse_value(c: &mut Cursor<&'_ str>) -> Result<Self, TildeError> {
         let mut buf = vec![];
         //:= this for in maybe re-write in helper function
         for t in [b'a', b'A'] {
-            c.read_until(t, &mut buf)?;
+            c.read_until(t, &mut buf)
+                .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
             match buf.last() {
                 Some(b) if *b == t => return Ok(Tilde::new(buf.len(), TildeKind::Va)),
                 _ => (),
             }
-            c.seek(SeekFrom::Current(-(buf.len() as i64)))?;
+            c.seek(SeekFrom::Current(-(buf.len() as i64)))
+                .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
             buf.clear();
         }
         Err(TildeError::new(ErrorKind::ParseError, "should start with ~a").into())
     }
 
     /// parse the float
-    fn parse_float(c: &mut Cursor<&'_ str>) -> Result<Self, Box<dyn std::error::Error>> {
+    fn parse_float(c: &mut Cursor<&'_ str>) -> Result<Self, TildeError> {
         let mut buf = vec![];
 
         for t in [b'$', b'f', b'F'] {
-            c.read_until(t, &mut buf)?;
+            c.read_until(t, &mut buf)
+                .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
             match buf.last() {
                 Some(b) if *b == t => {
                     return Ok(Tilde::new(
                         buf.len(),
-                        TildeKind::Float(Some(String::from_utf8(
-                            buf.get(1..buf.len() - 1).map_or(Vec::new(), |s| s.to_vec()),
-                        )?)),
+                        TildeKind::Float(Some(
+                            String::from_utf8(
+                                buf.get(1..buf.len() - 1).map_or(Vec::new(), |s| s.to_vec()),
+                            )
+                            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?,
+                        )),
                     ))
                 }
                 _ => (),
             }
-            c.seek(SeekFrom::Current(-(buf.len() as i64)))?;
+            c.seek(SeekFrom::Current(-(buf.len() as i64)))
+                .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
             buf.clear();
         }
         Err(TildeError::new(ErrorKind::ParseError, "cannot find the '$' or 'f'").into())
     }
 
     /// parse the digit
-    fn parse_digit(c: &mut Cursor<&'_ str>) -> Result<Self, Box<dyn std::error::Error>> {
+    fn parse_digit(c: &mut Cursor<&'_ str>) -> Result<Self, TildeError> {
         let mut buf = vec![];
 
         for t in [b'd', b'D'] {
-            c.read_until(t, &mut buf)?;
+            c.read_until(t, &mut buf)
+                .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
             match buf.last() {
                 Some(b) if *b == t => {
                     let s = String::from_utf8(
                         buf.get(1..buf.len() - 1).map_or(Vec::new(), |s| s.to_vec()),
-                    )?;
+                    )
+                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
                     return Ok(Tilde::new(
                         buf.len(),
                         if &s == "" {
@@ -487,16 +534,18 @@ impl Tilde {
                 }
                 _ => (),
             }
-            c.seek(SeekFrom::Current(-(buf.len() as i64)))?;
+            c.seek(SeekFrom::Current(-(buf.len() as i64)))
+                .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
             buf.clear();
         }
         Err(TildeError::new(ErrorKind::ParseError, "cannot find the 'd' or 'D'").into())
     }
 
     /// parse the star
-    fn parse_star(c: &mut Cursor<&'_ str>) -> Result<Self, Box<dyn std::error::Error>> {
+    fn parse_star(c: &mut Cursor<&'_ str>) -> Result<Self, TildeError> {
         let mut char_buf = [0u8; 3]; // three bytes
-        c.read(&mut char_buf)?;
+        c.read(&mut char_buf)
+            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
 
         match char_buf {
             [b'~', b':', b'*'] => Ok(Self {
@@ -504,14 +553,16 @@ impl Tilde {
                 value: TildeKind::Star(StarKind::Hop),
             }),
             [b'~', b'*', ..] => {
-                c.seek(SeekFrom::Current(-1))?;
+                c.seek(SeekFrom::Current(-1))
+                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
                 Ok(Self {
                     len: 2,
                     value: TildeKind::Star(StarKind::Skip),
                 })
             }
             _ => {
-                c.seek(SeekFrom::Current(-3))?;
+                c.seek(SeekFrom::Current(-3))
+                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
                 return Err(
                     TildeError::new(ErrorKind::ParseError, "should start with ~* or ~:*").into(),
                 );
@@ -519,39 +570,49 @@ impl Tilde {
         }
     }
 
-    fn parse_tildes(c: &mut Cursor<&'_ str>) -> Result<Self, Box<dyn std::error::Error>> {
+    fn parse_tildes(c: &mut Cursor<&'_ str>) -> Result<Self, TildeError> {
         let mut char_buf = [0u8; 3]; // three bytes
-        c.read(&mut char_buf)?;
+        c.read(&mut char_buf)
+            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
         match char_buf {
             [b'~', n @ _, b'~'] => Ok(Self {
                 len: 3,
-                value: TildeKind::Tildes(String::from_utf8(vec![n])?.parse::<usize>()?),
+                value: TildeKind::Tildes(
+                    String::from_utf8(vec![n])
+                        .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?
+                        .parse::<usize>()
+                        .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?,
+                ),
             }),
             _ => {
-                c.seek(SeekFrom::Current(-3))?;
+                c.seek(SeekFrom::Current(-3))
+                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
                 return Err(TildeError::new(ErrorKind::ParseError, "should start with ~n~").into());
             }
         }
     }
 
-    fn parse_standard(c: &mut Cursor<&'_ str>) -> Result<Self, Box<dyn std::error::Error>> {
+    fn parse_standard(c: &mut Cursor<&'_ str>) -> Result<Self, TildeError> {
         let mut buf = vec![];
 
         for t in [b's', b'S'] {
-            c.read_until(t, &mut buf)?;
+            c.read_until(t, &mut buf)
+                .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
             match buf.last() {
                 Some(b) if *b == t => return Ok(Tilde::new(buf.len(), TildeKind::Standard)),
                 _ => (),
             }
-            c.seek(SeekFrom::Current(-(buf.len() as i64)))?;
+            c.seek(SeekFrom::Current(-(buf.len() as i64)))
+                .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
             buf.clear();
         }
         Err(TildeError::new(ErrorKind::ParseError, "cannot find the 's' or 'S'").into())
     }
 
-    fn parse_char(c: &mut Cursor<&'_ str>) -> Result<Self, Box<dyn std::error::Error>> {
+    fn parse_char(c: &mut Cursor<&'_ str>) -> Result<Self, TildeError> {
         let mut char_buf = [0u8; 3]; // three bytes
-        c.read(&mut char_buf)?;
+        c.read(&mut char_buf)
+            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
 
         match char_buf {
             [b'~', b'@', b'c' | b'C'] => Ok(Self {
@@ -559,14 +620,16 @@ impl Tilde {
                 value: TildeKind::Char(CharKind::At),
             }),
             [b'~', b'c' | b'C', ..] => {
-                c.seek(SeekFrom::Current(-1))?;
+                c.seek(SeekFrom::Current(-1))
+                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
                 Ok(Self {
                     len: 2,
                     value: TildeKind::Char(CharKind::Nil),
                 })
             }
             _ => {
-                c.seek(SeekFrom::Current(-3))?;
+                c.seek(SeekFrom::Current(-3))
+                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
                 return Err(
                     TildeError::new(ErrorKind::ParseError, "should start with ~c or ~@c").into(),
                 );

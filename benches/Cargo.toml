@@ -1,0 +1,22 @@
+[package]
+name = "benches"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[dependencies]
+cl-format = { version = "0.1", path = "../cl-format" }
+
+[dev-dependencies]
+criterion = { version = "0.4", features = ["html_reports"] }
+pprof = { version = "0.11", features = ["flamegraph", "criterion"] }
+
+[[bench]]
+name = "bench0"
+path = "bench0.rs"
+harness = false
+
+[[bench]]
+name = "bench1"
+path = "bench1.rs"
+harness = false
