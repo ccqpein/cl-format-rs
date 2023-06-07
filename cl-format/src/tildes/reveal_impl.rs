@@ -4,7 +4,7 @@ use super::*;
 // TildeKindDigit
 //========================================
 multi_tilde_impl!(TildeKindDigit, [i32, i64, u32, u64, usize], self, {
-    Ok(Some(format!("{}", self)))
+    Ok(Some(self.to_string()))
 });
 
 //========================================
@@ -15,7 +15,7 @@ impl TildeKindChar for char {
     fn format(&self, tkind: &TildeKind) -> Result<Option<String>, TildeError> {
         match tkind {
             TildeKind::Char(CharKind::At) => Ok(Some(format!("'{}'", self))),
-            TildeKind::Char(CharKind::Nil) => Ok(Some(format!("{}", self))),
+            TildeKind::Char(CharKind::Nil) => Ok(Some(self.to_string())),
             _ => Err(TildeError::new(ErrorKind::RevealError, "cannot format to Char").into()),
         }
     }
@@ -28,7 +28,7 @@ multi_tilde_impl!(
     TildeKindVa,
     [f32, f64, char, i32, i64, usize, u32, u64, String],
     self,
-    { Ok(Some(format!("{}", self))) }
+    { Ok(Some(self.to_string())) }
 );
 
 impl TildeKindVa for bool {
@@ -311,5 +311,5 @@ multi_tilde_impl!(
     TildeKindStandard,
     [f32, f64, i32, i64, usize, bool, u32, u64],
     self,
-    { Ok(Some(format!("{}", self))) }
+    { Ok(Some(self.to_string())) }
 );

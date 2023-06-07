@@ -10,6 +10,13 @@
 | bench_cl_format_making_loop_string             | 1,034 ns/iter (+/- 21) |
 | bench_normal_making_loop_empty_string          | 13 ns/iter (+/- 0)     |
 | bench_normal_making_loop_string                | 60 ns/iter (+/- 1)     |
+| bench_cl_format_reveal_single_a                | 84.663 ns              |
+| bench_cl_format_plain_single_a                 | 25.153 ns              |
 
 
+`bench_cl_format_making_loop_string` target is < 200ns
 
+
+## flamegraph ##
+
+`sudo cargo flamegraph -o bench0_flamegraph.svg --bench bench0 -- --bench`
