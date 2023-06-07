@@ -4,7 +4,7 @@ use cl_format::*;
 //:= DEL: use test::Bencher;
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
-use pprof::criterion::{Output, PProfProfiler};
+//use pprof::criterion::{Output, PProfProfiler};
 
 fn cl_format_reveal_single_a(control_str: &ControlStr, args: Args) -> String {
     control_str.reveal(args).unwrap()
@@ -22,14 +22,14 @@ fn bench_cl_format_reveal_single_a(c: &mut Criterion) {
     let control_str = ControlStr::from("~a").unwrap();
     let args = Args::new(list0);
     c.bench_function("bench_cl_format_reveal_single_a", |b| {
-        b.iter(|| cl_format_reveal_single_a(black_box(&control_str), black_box(args.clone())))
+        b.iter(|| cl_format_reveal_single_a(&control_str, args.clone()))
     });
 }
 
 fn bench_cl_format_plain_single_a(c: &mut Criterion) {
     let a = 1;
     c.bench_function("bench_cl_format_plain_single_a", |b| {
-        b.iter(|| cl_format_plain_single_a(black_box(a.clone())))
+        b.iter(|| cl_format_plain_single_a(a.clone()))
     });
 }
 
@@ -49,9 +49,8 @@ fn bench_cl_format_plain_single_a(c: &mut Criterion) {
 
 criterion_group! {
     name = bench_single;
-    config = Criterion::default().with_profiler(PProfProfiler::new(100, Output::Flamegraph(None)));
-    targets =
-        bench_cl_format_reveal_single_a,
-        //bench_cl_format_plain_single_a,
+    config = Criterion::default(); //.with_profiler(PProfProfiler::new(100, Output::Flamegraph(None)));
+    targets = bench_cl_format_reveal_single_a, bench_cl_format_plain_single_a
 }
+
 criterion_main!(bench_single);

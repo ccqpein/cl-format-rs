@@ -1,3 +1,6 @@
 [workspace]
-
+resolver = "2"
 members = ["cl-format", "cl-format-macros", "benches"]
+
+[profile.bench]
+debug = true
