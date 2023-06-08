@@ -61,17 +61,18 @@ impl<'a> ControlStr<'a> {
     ) -> impl Iterator<Item = (&'cs (usize, usize), Result<Option<String>, TildeError>)> + 'cs {
         self.tildes
             .iter()
-            .map(move |(ind, tilde)| (ind, tilde.reveal(args)))
+            .map(|(ind, tilde)| (ind, tilde.reveal(args)))
     }
 
-    pub fn reveal<'s>(&self, args: Args<'s>) -> Result<String, Box<dyn std::error::Error + 's>> {
+    pub fn reveal<'s>(&self, args: Args<'s>) -> Result<String, TildeError> {
         let mut result = String::new();
         let mut start = 0;
         let end = self.inner.len();
+        let empty_str = "".to_string();
 
         for (r, s) in self.reveal_tildes(&args) {
             result += &self.inner[start..r.0];
-            result += &s?.unwrap_or("".to_string()); //:= s? need return error
+            result += s?.as_ref().unwrap_or(&empty_str);
             start = r.1;
         }
 
