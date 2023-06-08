@@ -67,8 +67,7 @@ impl<'a> TildeKindLoop for Args<'a> {
                 tkind.match_reveal(a)
             }
             TildeKind::Loop((vv, TildeLoopKind::At)) => {
-                //let mut new_args = self.clone();
-                let mut result = vec![];
+                let mut result = Vec::with_capacity(self.len());
 
                 'a: loop {
                     for t in vv {
@@ -232,10 +231,14 @@ impl TildeKindVecTilde for TildeNil {
     fn format(&self, tkind: &TildeKind) -> Result<Option<String>, TildeError> {
         match tkind {
             TildeKind::VecTilde(vv) => {
-                let mut result = vec![];
-                for t in vv {
-                    result.push(t.reveal(self)?);
-                }
+                let result = vv.iter().map(|t| t.reveal(self)).try_fold(
+                    Vec::with_capacity(vv.len()),
+                    |mut acc, ele| {
+                        acc.push(ele?);
+                        Ok(acc)
+                    },
+                )?;
+
                 Ok(Some(
                     result
                         .into_iter()
@@ -254,10 +257,14 @@ impl<'a> TildeKindVecTilde for Args<'a> {
     fn format(&self, tkind: &TildeKind) -> Result<Option<String>, TildeError> {
         match tkind {
             TildeKind::VecTilde(vv) => {
-                let mut result = vec![];
-                for t in vv {
-                    result.push(t.reveal(self)?);
-                }
+                let result = vv.iter().map(|t| t.reveal(self)).try_fold(
+                    Vec::with_capacity(vv.len()),
+                    |mut acc, ele| {
+                        acc.push(ele?);
+                        Ok(acc)
+                    },
+                )?;
+
                 Ok(Some(
                     result
                         .into_iter()

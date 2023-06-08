@@ -30,6 +30,19 @@
 | bench_cl_format_reveal_single_a                | 79.576 ns |
 | bench_cl_format_plain_single_a                 | 25.153 ns |
 
+**6/7/2023**
+
+| benchmark names                                | results   |
+|------------------------------------------------|-----------|
+| bench_cl_format_reveal_single_a                | 74.855 ns |
+| bench_cl_format_making_loop_string             | 983.83 ns |
+| bench_normal_making_loop_string                | 58.859 ns |
+| bench_cl_format_macro_making_loop_empty_string | 1631 ns   |
+| bench_normal_making_loop_empty_string          | 13.260 ns |
+| bench_cl_format_making_loop_empty_string       | 547.69 ns |
+| bench_cl_format_macro_making_loop_string       | 2138 ns   |
+
+
 ## flamegraph ##
 
 `sudo cargo flamegraph -o bench0_flamegraph.svg --bench bench0 -- --bench`

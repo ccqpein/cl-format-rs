@@ -65,16 +65,22 @@ impl<'a> ControlStr<'a> {
     }
 
     pub fn reveal<'s>(&self, args: Args<'s>) -> Result<String, TildeError> {
-        let mut result = String::new();
         let mut start = 0;
         let end = self.inner.len();
         let empty_str = "".to_string();
 
-        for (r, s) in self.reveal_tildes(&args) {
-            result += &self.inner[start..r.0];
-            result += s?.as_ref().unwrap_or(&empty_str);
-            start = r.1;
-        }
+        let mut result = self.reveal_tildes(&args).try_fold(
+            String::with_capacity(args.len() * 2), // init string
+            |mut acc, (r, s)| match s {
+                Ok(ss) => {
+                    acc += &self.inner[start..r.0];
+                    acc += ss.as_ref().unwrap_or(&empty_str);
+                    start = r.1;
+                    Ok(acc)
+                }
+                Err(e) => Err(e),
+            },
+        )?;
 
         result += &self.inner[start..end];
 
@@ -539,7 +545,7 @@ mod tests {
     #[test]
     fn test_reveal_char() -> Result<(), Box<dyn std::error::Error>> {
         let case = "~c ~C ~@c";
-        let mut cs = ControlStr::new(case)?;
+        let cs = ControlStr::new(case)?;
         dbg!(&cs);
 
         let arg = Args::from([
@@ -562,7 +568,7 @@ mod tests {
     #[test]
     fn test_reveal_standard() -> Result<(), Box<dyn std::error::Error>> {
         let case = "~d ~s";
-        let mut cs = ControlStr::new(case)?;
+        let cs = ControlStr::new(case)?;
         dbg!(&cs);
 
         let s = String::from("hello");
