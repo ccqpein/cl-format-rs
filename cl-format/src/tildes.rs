@@ -411,6 +411,7 @@ impl Tilde {
         Ok(Tilde::new(total_len, TildeKind::Cond((result, cond_kind))))
     }
 
+    #[cfg(test)]
     fn parse_vec(
         c: &mut Cursor<&'_ str>,
         end_len: usize,

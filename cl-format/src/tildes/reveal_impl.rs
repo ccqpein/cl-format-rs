@@ -32,7 +32,7 @@ multi_tilde_impl!(
 );
 
 impl TildeKindVa for bool {
-    fn format(&self, tkind: &TildeKind) -> Result<Option<String>, TildeError> {
+    fn format(&self, _: &TildeKind) -> Result<Option<String>, TildeError> {
         if *self {
             Ok(Some("true".into()))
         } else {
@@ -42,13 +42,13 @@ impl TildeKindVa for bool {
 }
 
 impl TildeKindVa for TildeNil {
-    fn format(&self, tkind: &TildeKind) -> Result<Option<String>, TildeError> {
+    fn format(&self, _: &TildeKind) -> Result<Option<String>, TildeError> {
         Ok(Some("nil".into()))
     }
 }
 
 impl TildeKindVa for Vec<&dyn TildeAble> {
-    fn format(&self, tkind: &TildeKind) -> Result<Option<String>, TildeError> {
+    fn format(&self, _: &TildeKind) -> Result<Option<String>, TildeError> {
         Ok(Some(format!("{:?}", self)))
     }
 }
@@ -303,13 +303,13 @@ impl<'a> TildeKindStar for Args<'a> {
 // TildeKindStandard
 //========================================
 impl TildeKindStandard for String {
-    fn format(&self, tkind: &TildeKind) -> Result<Option<String>, TildeError> {
+    fn format(&self, _: &TildeKind) -> Result<Option<String>, TildeError> {
         Ok(Some(format!("\"{}\"", self)))
     }
 }
 
 impl TildeKindStandard for char {
-    fn format(&self, tkind: &TildeKind) -> Result<Option<String>, TildeError> {
+    fn format(&self, _: &TildeKind) -> Result<Option<String>, TildeError> {
         Ok(Some(format!("'{}'", self)))
     }
 }

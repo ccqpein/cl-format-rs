@@ -23,7 +23,7 @@ macro_rules! multi_tilde_impl {
     ($implName:ident, [$($y:ident),+], $s:ident,$body:block) => {
 		$(
 			impl $implName for $y {
-				fn format(&$s, tkind: &TildeKind) -> Result<Option<String>, TildeError>
+				fn format(&$s, _: &TildeKind) -> Result<Option<String>, TildeError>
 					$body
 
 			}

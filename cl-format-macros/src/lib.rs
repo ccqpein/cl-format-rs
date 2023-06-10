@@ -83,15 +83,8 @@ use std::{collections::HashMap, error::Error};
 
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span};
-use quote::{quote, ToTokens};
-use syn::{
-    buffer::{Cursor, TokenBuffer},
-    parse::{self, Parser},
-    parse_macro_input, parse_quote,
-    punctuated::Punctuated,
-    spanned::Spanned,
-    Attribute, Data, DataEnum, DeriveInput, Expr, Token, Variant,
-};
+use quote::quote;
+use syn::{parse_macro_input, spanned::Spanned, Attribute, Data, DataEnum, DeriveInput, Variant};
 
 #[proc_macro_derive(TildeAble, attributes(implTo))]
 pub fn derive_tilde_able(input: TokenStream) -> TokenStream {
@@ -189,7 +182,7 @@ pub fn derive_tilde_able_2(input: TokenStream) -> TokenStream {
         Data::Enum(DataEnum { ref variants, .. }) => {
             let all_vars = variants.iter().map(|var| parse_variant_attrs(var));
 
-            all_vars.for_each(|(field, tys)| {
+            all_vars.for_each(|(field, _)| {
                 // let fname = Ident::new(
                 //     &(String::from("into_tildekind_") + &field.to_lowercase()),
                 //     Span::call_site(),
@@ -283,7 +276,7 @@ fn get_types_impl_to(attribute: &Attribute) -> Result<impl Iterator<Item = Ident
                 .clone(),
         );
         Ok(())
-    });
+    })?;
 
     Ok(result.into_iter())
 }
@@ -293,124 +286,120 @@ fn get_types_impl_to(attribute: &Attribute) -> Result<impl Iterator<Item = Ident
 ///////////////////////
 
 // abandon, use the one in cl-format
-#[proc_macro]
-pub fn cl_format(tokens: TokenStream) -> TokenStream {
-    let items = Punctuated::<Expr, Token![,]>::parse_terminated
-        .parse(tokens)
-        .unwrap();
+// #[proc_macro]
+// pub fn cl_format(tokens: TokenStream) -> TokenStream {
+//     let items = Punctuated::<Expr, Token![,]>::parse_terminated
+//         .parse(tokens)
+//         .unwrap();
 
-    //dbg!(&items);
+//     //dbg!(&items);
 
-    let mut items = items.pairs();
+//     let mut items = items.pairs();
 
-    let cs = match items.next() {
-        Some(cs) => match cs.value() {
-            Expr::Lit(l) => match &l.lit {
-                syn::Lit::Str(s) => {
-                    //dbg!(s.value());
-                    let ss = s.value();
-                    quote! {let cs = control_str::ControlStr::from(#ss).unwrap();}
-                }
-                _ => panic!("the first arg have to be &str"),
-            },
-            Expr::Path(syn::ExprPath { attrs, qself, path }) => {
-                let pp = path
-                    .get_ident()
-                    .unwrap_or_else(|| panic!("path get ident failed"));
-                quote! {let cs = control_str::ControlStr::from(#pp).unwrap();}
-            }
-            Expr::Reference(er) => match er.expr.as_ref() {
-                Expr::Path(syn::ExprPath { attrs, qself, path }) => {
-                    let pp = path
-                        .get_ident()
-                        .unwrap_or_else(|| panic!("path get ident failed"));
-                    quote! {let cs = control_str::ControlStr::from(&#pp).unwrap();}
-                }
-                _ => panic!("the first arg have to be &str"),
-            },
-            _ => panic!("the first arg have to be &str"),
-        },
-        None => return proc_macro2::TokenStream::new().into(),
-    };
+//     let cs = match items.next() {
+//         Some(cs) => match cs.value() {
+//             Expr::Lit(l) => match &l.lit {
+//                 syn::Lit::Str(s) => {
+//                     //dbg!(s.value());
+//                     let ss = s.value();
+//                     quote! {let cs = control_str::ControlStr::from(#ss).unwrap();}
+//                 }
+//                 _ => panic!("the first arg have to be &str"),
+//             },
+//             Expr::Path(syn::ExprPath { attrs, qself, path }) => {
+//                 let pp = path
+//                     .get_ident()
+//                     .unwrap_or_else(|| panic!("path get ident failed"));
+//                 quote! {let cs = control_str::ControlStr::from(#pp).unwrap();}
+//             }
+//             Expr::Reference(er) => match er.expr.as_ref() {
+//                 Expr::Path(syn::ExprPath { attrs, qself, path }) => {
+//                     let pp = path
+//                         .get_ident()
+//                         .unwrap_or_else(|| panic!("path get ident failed"));
+//                     quote! {let cs = control_str::ControlStr::from(&#pp).unwrap();}
+//                 }
+//                 _ => panic!("the first arg have to be &str"),
+//             },
+//             _ => panic!("the first arg have to be &str"),
+//         },
+//         None => return proc_macro2::TokenStream::new().into(),
+//     };
 
-    //dbg!(cs.to_string());
-    //dbg!(items.len());
-    let args = args_picker(items);
-    //dbg!(args.to_string());
+//     //dbg!(cs.to_string());
+//     //dbg!(items.len());
+//     let args = args_picker(items);
+//     //dbg!(args.to_string());
 
-    let q = quote! {{
-        #cs
-        let args = #args;
-        cs.reveal(args)
-    }};
-    //println!("result: \n{}", q.to_string());
-    q.into()
-}
+//     let q = quote! {{
+//         #cs
+//         let args = #args;
+//         cs.reveal(args)
+//     }};
+//     //println!("result: \n{}", q.to_string());
+//     q.into()
+// }
 
 // abandon, use the one in cl-format
-fn args_picker(mut pairs: syn::punctuated::Pairs<Expr, Token![,]>) -> proc_macro2::TokenStream {
-    let mut result = vec![];
-    loop {
-        match pairs.next() {
-            Some(a) => match a.value() {
-                Expr::Path(syn::ExprPath { attrs, qself, path }) => {
-                    let pp = path
-                        .get_ident()
-                        .unwrap_or_else(|| panic!("path get ident failed"));
-                    result.push(quote! {#pp as &dyn tildes::TildeAble})
-                }
-                Expr::Reference(er) => match er.expr.as_ref() {
-                    Expr::Path(syn::ExprPath { attrs, qself, path }) => {
-                        let pp = path
-                            .get_ident()
-                            .unwrap_or_else(|| panic!("path get ident failed"));
-                        result.push(quote! {&#pp as &dyn tildes::TildeAble})
-                    }
-                    Expr::Lit(l) => {
-                        let x = match &l.lit {
-                            syn::Lit::Str(x) => x.to_token_stream(),
-                            syn::Lit::ByteStr(x) => x.to_token_stream(),
-                            syn::Lit::Byte(x) => x.to_token_stream(),
-                            syn::Lit::Char(x) => x.to_token_stream(),
-                            syn::Lit::Int(x) => x.to_token_stream(),
-                            syn::Lit::Float(x) => x.to_token_stream(),
-                            syn::Lit::Bool(x) => x.to_token_stream(),
-                            syn::Lit::Verbatim(x) => x.to_token_stream(),
-                            _ => unreachable!(),
-                        };
+// fn args_picker(mut pairs: syn::punctuated::Pairs<Expr, Token![,]>) -> proc_macro2::TokenStream {
+//     let mut result = vec![];
+//     loop {
+//         match pairs.next() {
+//             Some(a) => match a.value() {
+//                 Expr::Path(syn::ExprPath { attrs, qself, path }) => {
+//                     let pp = path
+//                         .get_ident()
+//                         .unwrap_or_else(|| panic!("path get ident failed"));
+//                     result.push(quote! {#pp as &dyn tildes::TildeAble})
+//                 }
+//                 Expr::Reference(er) => match er.expr.as_ref() {
+//                     Expr::Path(syn::ExprPath { attrs, qself, path }) => {
+//                         let pp = path
+//                             .get_ident()
+//                             .unwrap_or_else(|| panic!("path get ident failed"));
+//                         result.push(quote! {&#pp as &dyn tildes::TildeAble})
+//                     }
+//                     Expr::Lit(l) => {
+//                         let x = match &l.lit {
+//                             syn::Lit::Str(x) => x.to_token_stream(),
+//                             syn::Lit::ByteStr(x) => x.to_token_stream(),
+//                             syn::Lit::Byte(x) => x.to_token_stream(),
+//                             syn::Lit::Char(x) => x.to_token_stream(),
+//                             syn::Lit::Int(x) => x.to_token_stream(),
+//                             syn::Lit::Float(x) => x.to_token_stream(),
+//                             syn::Lit::Bool(x) => x.to_token_stream(),
+//                             syn::Lit::Verbatim(x) => x.to_token_stream(),
+//                             _ => unreachable!(),
+//                         };
 
-                        result.push(quote! {&#x as &dyn tildes::TildeAble})
-                    }
-                    _ => panic!("unsupport"),
-                },
-                // temporary value lifetime issue
-                // Expr::Array(a) => {
-                //     let a = args_picker(a.elems.pairs());
-                //     result.push(quote! {&#a as &dyn tildes::TildeAble})
-                // }
-                _ => panic!("only accept Path, Referance, and Array"),
-            },
-            None => {
-                return quote! {
-                    Into::<tildes::Args<'_>>::into([
-                        #(
-                            #result,
-                        )*
-                    ])
-                };
-            }
-        }
-    }
-}
+//                         result.push(quote! {&#x as &dyn tildes::TildeAble})
+//                     }
+//                     _ => panic!("unsupport"),
+//                 },
+//                 // temporary value lifetime issue
+//                 // Expr::Array(a) => {
+//                 //     let a = args_picker(a.elems.pairs());
+//                 //     result.push(quote! {&#a as &dyn tildes::TildeAble})
+//                 // }
+//                 _ => panic!("only accept Path, Referance, and Array"),
+//             },
+//             None => {
+//                 return quote! {
+//                     Into::<tildes::Args<'_>>::into([
+//                         #(
+//                             #result,
+//                         )*
+//                     ])
+//                 };
+//             }
+//         }
+//     }
+// }
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
     use super::*;
-    use proc_macro2::TokenStream;
-    use quote::quote;
-    use syn::{parse::Parser, parse2, parse_quote, Variant};
+    use syn::{parse_quote, Variant};
 
     #[test]
     fn test_get_types_impl_to() -> Result<(), Box<dyn Error>> {
