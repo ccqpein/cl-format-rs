@@ -126,7 +126,7 @@ pub fn derive_tilde_able(input: TokenStream) -> TokenStream {
                 //				
                 return_types_traits.push(quote! {
                     pub trait #return_type: Debug {
-                        fn format(&self, tkind: &TildeKind) -> Result<Option<String>, TildeError> {
+                        fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
                             Err(TildeError::new(ErrorKind::EmptyImplenmentError, "haven't implenmented yet").into(),)
                         }
                 }})

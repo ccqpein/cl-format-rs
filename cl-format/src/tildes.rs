@@ -33,8 +33,9 @@ impl Tilde {
         self.len
     }
 
-    pub fn reveal(&self, arg: &dyn TildeAble) -> Result<Option<String>, TildeError> {
-        self.value.match_reveal(arg)
+    pub fn reveal(&self, arg: &dyn TildeAble, mut buf: &mut String) -> Result<(), TildeError> {
+        self.value.match_reveal(arg, &mut buf)?;
+        Ok(())
     }
 
     /*
