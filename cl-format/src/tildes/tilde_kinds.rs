@@ -120,7 +120,7 @@ pub enum TildeKind {
 }
 
 impl TildeKind {
-    pub fn match_reveal(&self, arg: &dyn TildeAble) -> Result<Option<String>, TildeError> {
+    pub fn match_reveal(&self, arg: &dyn TildeAble, buf: &mut String) -> Result<(), TildeError> {
         //dbg!(arg);
         //dbg!(&self);
         match self {
@@ -129,69 +129,75 @@ impl TildeKind {
                     TildeError::new(ErrorKind::RevealError, "cannot reveal to Va").into(),
                 )?;
 
-                return a.format(self);
+                return a.format(self, buf);
             }
             TildeKind::Float(_) => {
                 let a = arg.into_tildekind_float().ok_or::<TildeError>(
                     TildeError::new(ErrorKind::RevealError, "cannot reveal to Va").into(),
                 )?;
 
-                return a.format(self);
+                return a.format(self, buf);
             }
             TildeKind::Digit(_) => {
                 let a = arg.into_tildekind_digit().ok_or::<TildeError>(
                     TildeError::new(ErrorKind::RevealError, "cannot reveal to Va").into(),
                 )?;
 
-                return a.format(self);
+                return a.format(self, buf);
             }
             TildeKind::Va => {
                 let a = arg.into_tildekind_va().ok_or::<TildeError>(
                     TildeError::new(ErrorKind::RevealError, "cannot reveal to Va").into(),
                 )?;
 
-                return a.format(self);
+                return a.format(self, buf);
             }
             TildeKind::Loop(_) => {
                 let a = arg.into_tildekind_loop().ok_or::<TildeError>(
                     TildeError::new(ErrorKind::RevealError, "cannot reveal to Loop").into(),
                 )?;
 
-                return a.format(self);
+                return a.format(self, buf);
             }
             TildeKind::LoopEnd => {
                 Err(TildeError::new(ErrorKind::RevealError, "loop end cannot reveal").into())
             }
             TildeKind::Tildes(n) => {
-                Ok(Some(String::from_utf8(vec![b'~'; *n]).map_err(|e| {
-                    TildeError::new(ErrorKind::RevealError, e.to_string())
-                })?))
+                buf.push_str(
+                    String::from_utf8(vec![b'~'; *n])
+                        .map_err(|e| TildeError::new(ErrorKind::RevealError, e.to_string()))?
+                        .as_str(),
+                );
+                Ok(())
             }
-            TildeKind::Text(s) => Ok(Some(s.to_string())),
+            TildeKind::Text(s) => {
+                buf.push_str(s);
+                Ok(())
+            }
             TildeKind::VecTilde(_) => {
                 let a = arg.into_tildekind_vectilde().ok_or::<TildeError>(
                     TildeError::new(ErrorKind::RevealError, "cannot reveal to VecTilde").into(),
                 )?;
 
-                return a.format(self);
+                return a.format(self, buf);
             }
             TildeKind::Cond((_, _)) => {
                 let a = arg.into_tildekind_cond().ok_or::<TildeError>(
                     TildeError::new(ErrorKind::RevealError, "cannot reveal to Cond").into(),
                 )?;
-                return a.format(self);
+                return a.format(self, buf);
             }
             TildeKind::Star(_) => {
                 let a = arg.into_tildekind_star().ok_or::<TildeError>(
                     TildeError::new(ErrorKind::RevealError, "cannot reveal to Star").into(),
                 )?;
-                return a.format(self);
+                return a.format(self, buf);
             }
             TildeKind::Standard => {
                 let a = arg.into_tildekind_standard().ok_or::<TildeError>(
                     TildeError::new(ErrorKind::RevealError, "cannot reveal to Standard").into(),
                 )?;
-                return a.format(self);
+                return a.format(self, buf);
             }
         }
     }

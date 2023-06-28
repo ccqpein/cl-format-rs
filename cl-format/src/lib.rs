@@ -12,7 +12,7 @@ pub use tildes::*;
 ///
 /// will expand
 ///
-/// impl TildeKindVa for float{
+/// impl TildeKindVa for float {
 ///     fn format(&self, tkind: &TildeKind) -> Result<String, Box<dyn std::error::Error>> {
 ///         Err("un-implenmented yet".into())
 ///     }
@@ -20,10 +20,10 @@ pub use tildes::*;
 /// ...
 #[macro_export]
 macro_rules! multi_tilde_impl {
-    ($implName:ident, [$($y:ident),+], $s:ident,$body:block) => {
+    ($implName:ident, [$($y:ident),+], $s:ident, $buf:ident, $body:block) => {
 		$(
 			impl $implName for $y {
-				fn format(&$s, _: &TildeKind) -> Result<Option<String>, TildeError>
+				fn format(&$s, _: &TildeKind, $buf: &mut String) -> Result<(), TildeError>
 					$body
 
 			}

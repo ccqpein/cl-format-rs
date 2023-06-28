@@ -3,8 +3,9 @@ use super::*;
 //========================================
 // TildeKindDigit
 //========================================
-multi_tilde_impl!(TildeKindDigit, [i32, i64, u32, u64, usize], self, {
-    Ok(Some(self.to_string()))
+multi_tilde_impl!(TildeKindDigit, [i32, i64, u32, u64, usize], self, buf, {
+    buf.push_str(self.to_string().as_str());
+    Ok(())
 });
 
 //========================================
@@ -12,10 +13,16 @@ multi_tilde_impl!(TildeKindDigit, [i32, i64, u32, u64, usize], self, {
 //========================================
 /// impl, re-define the format method for over writing the default method
 impl TildeKindChar for char {
-    fn format(&self, tkind: &TildeKind) -> Result<Option<String>, TildeError> {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         match tkind {
-            TildeKind::Char(CharKind::At) => Ok(Some(format!("'{}'", self))),
-            TildeKind::Char(CharKind::Nil) => Ok(Some(self.to_string())),
+            TildeKind::Char(CharKind::At) => {
+                buf.push_str(format!("'{}'", self).as_str());
+                Ok(())
+            }
+            TildeKind::Char(CharKind::Nil) => {
+                buf.push_str(self.to_string().as_str());
+                Ok(())
+            }
             _ => Err(TildeError::new(ErrorKind::RevealError, "cannot format to Char").into()),
         }
     }
@@ -28,28 +35,35 @@ multi_tilde_impl!(
     TildeKindVa,
     [f32, f64, char, i32, i64, usize, u32, u64, String],
     self,
-    { Ok(Some(self.to_string())) }
+    buf,
+    {
+        buf.push_str(self.to_string().as_str());
+        Ok(())
+    }
 );
 
 impl TildeKindVa for bool {
-    fn format(&self, _: &TildeKind) -> Result<Option<String>, TildeError> {
+    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         if *self {
-            Ok(Some("true".into()))
+            buf.push_str("true");
         } else {
-            Ok(Some("false".into()))
+            buf.push_str("false");
         }
+        Ok(())
     }
 }
 
 impl TildeKindVa for TildeNil {
-    fn format(&self, _: &TildeKind) -> Result<Option<String>, TildeError> {
-        Ok(Some("nil".into()))
+    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+        buf.push_str("nil");
+        Ok(())
     }
 }
 
 impl TildeKindVa for Vec<&dyn TildeAble> {
-    fn format(&self, _: &TildeKind) -> Result<Option<String>, TildeError> {
-        Ok(Some(format!("{:?}", self)))
+    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+        buf.push_str(format!("{:?}", self).as_str());
+        Ok(())
     }
 }
 
@@ -57,17 +71,17 @@ impl TildeKindVa for Vec<&dyn TildeAble> {
 // TildeKindLoop
 //========================================
 impl<'a> TildeKindLoop for Args<'a> {
-    fn format(&self, tkind: &TildeKind) -> Result<Option<String>, TildeError> {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         match tkind {
             // self[0] is the Vec<&dyn TildeAble> of loop
             TildeKind::Loop((_, TildeLoopKind::Nil | TildeLoopKind::NilColon)) => {
                 let a = self
                     .pop()
                     .ok_or::<TildeError>(TildeError::new(ErrorKind::FormatError, "run out args"))?;
-                tkind.match_reveal(a)
+                tkind.match_reveal(a, buf)
             }
             TildeKind::Loop((vv, TildeLoopKind::At)) => {
-                let mut result = Vec::with_capacity(self.len());
+                //:= DEL: let mut result = Vec::with_capacity(self.len());
 
                 'a: loop {
                     for t in vv {
@@ -78,8 +92,7 @@ impl<'a> TildeKindLoop for Args<'a> {
                                 break 'a;
                             }
                         }
-
-                        result.push(t.reveal(self)?);
+                        t.reveal(self, buf)?;
                     }
                     //dbg!(self);
                     if self.left_count() == 0 {
@@ -87,14 +100,15 @@ impl<'a> TildeKindLoop for Args<'a> {
                     }
                 }
 
-                Ok(Some(
-                    result
-                        .into_iter()
-                        .filter_map(|a| a)
-                        .collect::<Vec<_>>()
-                        .as_slice()
-                        .join(""),
-                ))
+                Ok(())
+                //:= DEL: 	Ok(Some(
+                //:= DEL:     result
+                //:= DEL:         .into_iter()
+                //:= DEL:         .filter_map(|a| a)
+                //:= DEL:         .collect::<Vec<_>>()
+                //:= DEL:         .as_slice()
+                //:= DEL:         .join(""),
+                //:= DEL: ))
             }
             _ => Err(TildeError::new(ErrorKind::RevealError, "cannot format Arg to Loop").into()),
         }
@@ -102,7 +116,7 @@ impl<'a> TildeKindLoop for Args<'a> {
 }
 
 impl<'a> TildeKindLoop for Vec<&dyn TildeAble> {
-    fn format(&self, tkind: &TildeKind) -> Result<Option<String>, TildeError> {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         match tkind {
             TildeKind::Loop((_, TildeLoopKind::Nil)) => {
                 let mut new_kind = tkind.clone();
@@ -112,12 +126,12 @@ impl<'a> TildeKindLoop for Vec<&dyn TildeAble> {
                         if self.len() != 0 {
                             *k = TildeLoopKind::At
                         } else {
-                            return Ok(None);
+                            return Ok(());
                         }
                     }
                     _ => unreachable!(),
                 };
-                new_kind.match_reveal(&Args::from(self))
+                new_kind.match_reveal(&Args::from(self), buf)
             }
             TildeKind::Loop((_, TildeLoopKind::NilColon)) => {
                 let mut new_kind = tkind.clone();
@@ -125,7 +139,7 @@ impl<'a> TildeKindLoop for Vec<&dyn TildeAble> {
                     TildeKind::Loop((_, k @ TildeLoopKind::NilColon)) => *k = TildeLoopKind::At,
                     _ => unreachable!(),
                 };
-                new_kind.match_reveal(&Args::from(self))
+                new_kind.match_reveal(&Args::from(self), buf)
             }
             _ => Err(TildeError::new(ErrorKind::RevealError, "cannot format Vec to Loop").into()),
         }
@@ -136,22 +150,31 @@ impl<'a> TildeKindLoop for Vec<&dyn TildeAble> {
 // TildeKindCond
 //========================================
 impl TildeKindCond for usize {
-    fn format(&self, tkind: &TildeKind) -> Result<Option<String>, TildeError> {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         //dbg!(self);
         match tkind {
             TildeKind::Cond((vv, TildeCondKind::Nil(true))) => match vv.get(*self) {
-                Some(tt) => tt.reveal(&TildeNil),
+                Some(tt) => {
+                    tt.reveal(&TildeNil, buf)?;
+                    Ok(())
+                }
                 None => {
                     let last = vv.len() - 1;
                     match vv.get(last) {
-                        Some(tt) => tt.reveal(&TildeNil),
-                        None => Ok(None),
+                        Some(tt) => {
+                            tt.reveal(&TildeNil, buf)?;
+                            Ok(())
+                        }
+                        None => Ok(()),
                     }
                 }
             },
             TildeKind::Cond((vv, TildeCondKind::Nil(false))) => match vv.get(*self) {
-                Some(tt) => tt.reveal(&TildeNil),
-                None => Ok(None),
+                Some(tt) => {
+                    tt.reveal(&TildeNil, buf)?;
+                    Ok(())
+                }
+                None => Ok(()),
             },
             _ => Err(TildeError::new(ErrorKind::RevealError, "cannot format to Cond").into()),
         }
@@ -159,7 +182,7 @@ impl TildeKindCond for usize {
 }
 
 impl TildeKindCond for bool {
-    fn format(&self, tkind: &TildeKind) -> Result<Option<String>, TildeError> {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         match tkind {
             TildeKind::Cond((vv, TildeCondKind::Colon)) => {
                 if *self {
@@ -168,14 +191,18 @@ impl TildeKindCond for bool {
                             ErrorKind::FormatError,
                             "cannot get tilde",
                         ))?
-                        .reveal(&TildeNil)
+                        .reveal(&TildeNil, buf)?;
+
+                    Ok(())
                 } else {
                     vv.get(0)
                         .ok_or::<TildeError>(TildeError::new(
                             ErrorKind::FormatError,
                             "cannot get tilde",
                         ))?
-                        .reveal(&TildeNil)
+                        .reveal(&TildeNil, buf)?;
+
+                    Ok(())
                 }
             }
             _ => Err(TildeError::new(ErrorKind::RevealError, "cannot format to Cond").into()),
@@ -184,7 +211,7 @@ impl TildeKindCond for bool {
 }
 
 impl TildeKindCond for Option<&dyn TildeAble> {
-    fn format(&self, tkind: &TildeKind) -> Result<Option<String>, TildeError> {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         match tkind {
             TildeKind::Cond((vv, TildeCondKind::At)) => match self {
                 Some(a) => {
@@ -193,9 +220,9 @@ impl TildeKindCond for Option<&dyn TildeAble> {
                     // VecTilde need the vec
                     // TildeCondKind::At only accept one arg
 
-                    k.match_reveal(&Args::from([*a]))
+                    k.match_reveal(&Args::from([*a]), buf)
                 }
-                None => Ok(None),
+                None => Ok(()),
             },
             _ => Err(TildeError::new(ErrorKind::RevealError, "cannot format to Cond").into()),
         }
@@ -203,21 +230,23 @@ impl TildeKindCond for Option<&dyn TildeAble> {
 }
 
 impl<'a> TildeKindCond for Args<'a> {
-    fn format(&self, tkind: &TildeKind) -> Result<Option<String>, TildeError> {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         match tkind {
             TildeKind::Cond((vv, TildeCondKind::Sharp)) => {
                 let l = self.left_count();
                 if l >= vv.len() {
-                    vv[vv.len() - 1].reveal(self)
+                    let s = vv[vv.len() - 1].reveal(self, buf)?;
+                    Ok(())
                 } else {
-                    vv[l].reveal(self)
+                    let s = vv[l].reveal(self, buf)?;
+                    Ok(())
                 }
             }
             TildeKind::Cond((_, _)) => {
                 let a = self
                     .pop()
                     .ok_or::<TildeError>(TildeError::new(ErrorKind::FormatError, "run out args"))?;
-                tkind.match_reveal(a)
+                tkind.match_reveal(a, buf)
             }
             _ => Err(TildeError::new(ErrorKind::RevealError, "cannot format to Cond").into()),
         }
@@ -228,25 +257,30 @@ impl<'a> TildeKindCond for Args<'a> {
 // TildeKindVecTilde
 //========================================
 impl TildeKindVecTilde for TildeNil {
-    fn format(&self, tkind: &TildeKind) -> Result<Option<String>, TildeError> {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         match tkind {
             TildeKind::VecTilde(vv) => {
-                let result = vv.iter().map(|t| t.reveal(self)).try_fold(
-                    Vec::with_capacity(vv.len()),
-                    |mut acc, ele| {
-                        acc.push(ele?);
-                        Ok(acc)
-                    },
-                )?;
+                for v in vv {
+                    let s = v.reveal(self, buf)?;
+                }
 
-                Ok(Some(
-                    result
-                        .into_iter()
-                        .filter_map(|a| a)
-                        .collect::<Vec<_>>()
-                        .as_slice()
-                        .join(""),
-                ))
+                // let result = vv.iter().map(|t| t.reveal(self)).try_fold(
+                //     Vec::with_capacity(vv.len()),
+                //     |mut acc, ele| {
+                //         acc.push(ele?);
+                //         Ok(acc)
+                //     },
+                // )?;
+
+                Ok(())
+                // Ok(Some(
+                //     result
+                //         .into_iter()
+                //         .filter_map(|a| a)
+                //         .collect::<Vec<_>>()
+                //         .as_slice()
+                //         .join(""),
+                // ))
             }
             _ => Err(TildeError::new(ErrorKind::RevealError, "cannot format to VecTilde").into()),
         }
@@ -254,25 +288,29 @@ impl TildeKindVecTilde for TildeNil {
 }
 
 impl<'a> TildeKindVecTilde for Args<'a> {
-    fn format(&self, tkind: &TildeKind) -> Result<Option<String>, TildeError> {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         match tkind {
             TildeKind::VecTilde(vv) => {
-                let result = vv.iter().map(|t| t.reveal(self)).try_fold(
-                    Vec::with_capacity(vv.len()),
-                    |mut acc, ele| {
-                        acc.push(ele?);
-                        Ok(acc)
-                    },
-                )?;
+                for v in vv {
+                    v.reveal(self, buf)?;
+                }
+                Ok(())
+                // let result = vv.iter().map(|t| t.reveal(self)).try_fold(
+                //     Vec::with_capacity(vv.len()),
+                //     |mut acc, ele| {
+                //         acc.push(ele?);
+                //         Ok(acc)
+                //     },
+                // )?;
 
-                Ok(Some(
-                    result
-                        .into_iter()
-                        .filter_map(|a| a)
-                        .collect::<Vec<_>>()
-                        .as_slice()
-                        .join(""),
-                ))
+                // Ok(Some(
+                //     result
+                //         .into_iter()
+                //         .filter_map(|a| a)
+                //         .collect::<Vec<_>>()
+                //         .as_slice()
+                //         .join(""),
+                // ))
             }
             _ => Err(TildeError::new(ErrorKind::RevealError, "cannot format to VecTilde").into()),
         }
@@ -283,16 +321,16 @@ impl<'a> TildeKindVecTilde for Args<'a> {
 // TildeKindStar
 //========================================
 impl<'a> TildeKindStar for Args<'a> {
-    fn format(&self, tkind: &TildeKind) -> Result<Option<String>, TildeError> {
+    fn format(&self, tkind: &TildeKind, _buf: &mut String) -> Result<(), TildeError> {
         match tkind {
             TildeKind::Star(StarKind::Hop) => {
                 self.back(); // back to last one, make it hop
 
-                Ok(None)
+                Ok(())
             }
             TildeKind::Star(StarKind::Skip) => {
                 self.pop();
-                Ok(None)
+                Ok(())
             }
             _ => Err(TildeError::new(ErrorKind::RevealError, "cannot format to Star").into()),
         }
@@ -303,14 +341,16 @@ impl<'a> TildeKindStar for Args<'a> {
 // TildeKindStandard
 //========================================
 impl TildeKindStandard for String {
-    fn format(&self, _: &TildeKind) -> Result<Option<String>, TildeError> {
-        Ok(Some(format!("\"{}\"", self)))
+    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+        buf.push_str(format!("\"{}\"", self).as_str());
+        Ok(())
     }
 }
 
 impl TildeKindStandard for char {
-    fn format(&self, _: &TildeKind) -> Result<Option<String>, TildeError> {
-        Ok(Some(format!("'{}'", self)))
+    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+        buf.push_str(format!("'{}'", self).as_str());
+        Ok(())
     }
 }
 
@@ -318,5 +358,9 @@ multi_tilde_impl!(
     TildeKindStandard,
     [f32, f64, i32, i64, usize, bool, u32, u64],
     self,
-    { Ok(Some(self.to_string())) }
+    buf,
+    {
+        buf.push_str(self.to_string().as_str());
+        Ok(())
+    }
 );
