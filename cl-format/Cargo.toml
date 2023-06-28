@@ -1,6 +1,6 @@
 [package]
 name = "cl-format"
-version = "0.1.5"
+version = "0.1.6"
 authors = ["ccQpein"]
 edition = "2021"
 description = "Use Common Lisp format in Rust"
@@ -14,4 +14,4 @@ readme = "../README.md"
 bench = false
 
 [dependencies]
-cl-format-macros = { version = "0.1", path = "../cl-format-macros" }
+cl-format-macros = { version = "0.1.3", path = "../cl-format-macros" }

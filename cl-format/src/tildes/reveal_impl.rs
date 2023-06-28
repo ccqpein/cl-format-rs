@@ -81,8 +81,6 @@ impl<'a> TildeKindLoop for Args<'a> {
                 tkind.match_reveal(a, buf)
             }
             TildeKind::Loop((vv, TildeLoopKind::At)) => {
-                //:= DEL: let mut result = Vec::with_capacity(self.len());
-
                 'a: loop {
                     for t in vv {
                         if let TildeKind::LoopEnd = t.value {
@@ -101,14 +99,6 @@ impl<'a> TildeKindLoop for Args<'a> {
                 }
 
                 Ok(())
-                //:= DEL: 	Ok(Some(
-                //:= DEL:     result
-                //:= DEL:         .into_iter()
-                //:= DEL:         .filter_map(|a| a)
-                //:= DEL:         .collect::<Vec<_>>()
-                //:= DEL:         .as_slice()
-                //:= DEL:         .join(""),
-                //:= DEL: ))
             }
             _ => Err(TildeError::new(ErrorKind::RevealError, "cannot format Arg to Loop").into()),
         }
@@ -235,10 +225,10 @@ impl<'a> TildeKindCond for Args<'a> {
             TildeKind::Cond((vv, TildeCondKind::Sharp)) => {
                 let l = self.left_count();
                 if l >= vv.len() {
-                    let s = vv[vv.len() - 1].reveal(self, buf)?;
+                    vv[vv.len() - 1].reveal(self, buf)?;
                     Ok(())
                 } else {
-                    let s = vv[l].reveal(self, buf)?;
+                    vv[l].reveal(self, buf)?;
                     Ok(())
                 }
             }
@@ -261,26 +251,10 @@ impl TildeKindVecTilde for TildeNil {
         match tkind {
             TildeKind::VecTilde(vv) => {
                 for v in vv {
-                    let s = v.reveal(self, buf)?;
+                    v.reveal(self, buf)?;
                 }
 
-                // let result = vv.iter().map(|t| t.reveal(self)).try_fold(
-                //     Vec::with_capacity(vv.len()),
-                //     |mut acc, ele| {
-                //         acc.push(ele?);
-                //         Ok(acc)
-                //     },
-                // )?;
-
                 Ok(())
-                // Ok(Some(
-                //     result
-                //         .into_iter()
-                //         .filter_map(|a| a)
-                //         .collect::<Vec<_>>()
-                //         .as_slice()
-                //         .join(""),
-                // ))
             }
             _ => Err(TildeError::new(ErrorKind::RevealError, "cannot format to VecTilde").into()),
         }
@@ -295,22 +269,6 @@ impl<'a> TildeKindVecTilde for Args<'a> {
                     v.reveal(self, buf)?;
                 }
                 Ok(())
-                // let result = vv.iter().map(|t| t.reveal(self)).try_fold(
-                //     Vec::with_capacity(vv.len()),
-                //     |mut acc, ele| {
-                //         acc.push(ele?);
-                //         Ok(acc)
-                //     },
-                // )?;
-
-                // Ok(Some(
-                //     result
-                //         .into_iter()
-                //         .filter_map(|a| a)
-                //         .collect::<Vec<_>>()
-                //         .as_slice()
-                //         .join(""),
-                // ))
             }
             _ => Err(TildeError::new(ErrorKind::RevealError, "cannot format to VecTilde").into()),
         }
