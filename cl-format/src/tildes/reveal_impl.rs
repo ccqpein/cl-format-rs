@@ -3,17 +3,24 @@ use super::*;
 //========================================
 // TildeKindDigit
 //========================================
-multi_tilde_impl!(TildeKindDigit, [i32, i64, u32, u64, usize], self, buf, {
-    buf.push_str(self.to_string().as_str());
-    Ok(())
-});
+multi_tilde_impl2!(
+    TildeKindDigit,
+    [i32, i64, u32, u64, usize],
+    self,
+    buf,
+    format_to_digit,
+    {
+        buf.push_str(self.to_string().as_str());
+        Ok(())
+    }
+);
 
 //========================================
 // TildeKindChar
 //========================================
 /// impl, re-define the format method for over writing the default method
 impl TildeKindChar for char {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format_to_char(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         match tkind {
             TildeKind::Char(CharKind::At) => {
                 buf.push_str(format!("'{}'", self).as_str());
@@ -31,11 +38,12 @@ impl TildeKindChar for char {
 //========================================
 // TildeKindVa
 //========================================
-multi_tilde_impl!(
+multi_tilde_impl2!(
     TildeKindVa,
     [f32, f64, char, i32, i64, usize, u32, u64, String],
     self,
     buf,
+    format_to_va,
     {
         buf.push_str(self.to_string().as_str());
         Ok(())
@@ -43,7 +51,7 @@ multi_tilde_impl!(
 );
 
 impl TildeKindVa for bool {
-    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format_to_va(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         if *self {
             buf.push_str("true");
         } else {
@@ -54,14 +62,14 @@ impl TildeKindVa for bool {
 }
 
 impl TildeKindVa for TildeNil {
-    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format_to_va(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         buf.push_str("nil");
         Ok(())
     }
 }
 
-impl TildeKindVa for Vec<&dyn TildeAble> {
-    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+impl TildeKindVa for Vec<&dyn TildeAble2> {
+    fn format_to_va(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         buf.push_str(format!("{:?}", self).as_str());
         Ok(())
     }
@@ -71,7 +79,7 @@ impl TildeKindVa for Vec<&dyn TildeAble> {
 // TildeKindLoop
 //========================================
 impl<'a> TildeKindLoop for Args<'a> {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format_to_loop(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         match tkind {
             // self[0] is the Vec<&dyn TildeAble> of loop
             TildeKind::Loop((_, TildeLoopKind::Nil | TildeLoopKind::NilColon)) => {
@@ -105,8 +113,8 @@ impl<'a> TildeKindLoop for Args<'a> {
     }
 }
 
-impl<'a> TildeKindLoop for Vec<&dyn TildeAble> {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+impl<'a> TildeKindLoop for Vec<&dyn TildeAble2> {
+    fn format_to_loop(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         match tkind {
             TildeKind::Loop((_, TildeLoopKind::Nil)) => {
                 let mut new_kind = tkind.clone();
@@ -140,7 +148,7 @@ impl<'a> TildeKindLoop for Vec<&dyn TildeAble> {
 // TildeKindCond
 //========================================
 impl TildeKindCond for usize {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format_to_cond(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         //dbg!(self);
         match tkind {
             TildeKind::Cond((vv, TildeCondKind::Nil(true))) => match vv.get(*self) {
@@ -172,7 +180,7 @@ impl TildeKindCond for usize {
 }
 
 impl TildeKindCond for bool {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format_to_cond(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         match tkind {
             TildeKind::Cond((vv, TildeCondKind::Colon)) => {
                 if *self {
@@ -200,8 +208,8 @@ impl TildeKindCond for bool {
     }
 }
 
-impl TildeKindCond for Option<&dyn TildeAble> {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+impl TildeKindCond for Option<&dyn TildeAble2> {
+    fn format_to_cond(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         match tkind {
             TildeKind::Cond((vv, TildeCondKind::At)) => match self {
                 Some(a) => {
@@ -220,7 +228,7 @@ impl TildeKindCond for Option<&dyn TildeAble> {
 }
 
 impl<'a> TildeKindCond for Args<'a> {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format_to_cond(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         match tkind {
             TildeKind::Cond((vv, TildeCondKind::Sharp)) => {
                 let l = self.left_count();
@@ -247,7 +255,7 @@ impl<'a> TildeKindCond for Args<'a> {
 // TildeKindVecTilde
 //========================================
 impl TildeKindVecTilde for TildeNil {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format_to_vectilde(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         match tkind {
             TildeKind::VecTilde(vv) => {
                 for v in vv {
@@ -262,7 +270,7 @@ impl TildeKindVecTilde for TildeNil {
 }
 
 impl<'a> TildeKindVecTilde for Args<'a> {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format_to_vectilde(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         match tkind {
             TildeKind::VecTilde(vv) => {
                 for v in vv {
@@ -279,7 +287,7 @@ impl<'a> TildeKindVecTilde for Args<'a> {
 // TildeKindStar
 //========================================
 impl<'a> TildeKindStar for Args<'a> {
-    fn format(&self, tkind: &TildeKind, _buf: &mut String) -> Result<(), TildeError> {
+    fn format_to_star(&self, tkind: &TildeKind, _buf: &mut String) -> Result<(), TildeError> {
         match tkind {
             TildeKind::Star(StarKind::Hop) => {
                 self.back(); // back to last one, make it hop
@@ -299,24 +307,25 @@ impl<'a> TildeKindStar for Args<'a> {
 // TildeKindStandard
 //========================================
 impl TildeKindStandard for String {
-    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format_to_standard(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         buf.push_str(format!("\"{}\"", self).as_str());
         Ok(())
     }
 }
 
 impl TildeKindStandard for char {
-    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format_to_standard(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         buf.push_str(format!("'{}'", self).as_str());
         Ok(())
     }
 }
 
-multi_tilde_impl!(
+multi_tilde_impl2!(
     TildeKindStandard,
     [f32, f64, i32, i64, usize, bool, u32, u64],
     self,
     buf,
+    format_to_standard,
     {
         buf.push_str(self.to_string().as_str());
         Ok(())

@@ -1,7 +1,8 @@
 use super::Tilde;
 
-use cl_format_macros::TildeAble;
-use std::fmt::Debug;
+//use cl_format_macros::TildeAble;
+use cl_format_macros::TildeAble2;
+use std::{any::Any, fmt::Debug};
 
 #[derive(Debug)]
 pub struct TildeError {
@@ -73,7 +74,7 @@ pub enum CharKind {
     At,
 }
 
-#[derive(Debug, PartialEq, TildeAble, Clone)]
+#[derive(Debug, PartialEq, TildeAble2, Clone)]
 pub enum TildeKind {
     /// ~C ~:C
     #[implTo(char)]
@@ -120,7 +121,8 @@ pub enum TildeKind {
 }
 
 impl TildeKind {
-    pub fn match_reveal(&self, arg: &dyn TildeAble, buf: &mut String) -> Result<(), TildeError> {
+    //pub fn match_reveal(&self, arg: &dyn TildeAble, buf: &mut String) -> Result<(), TildeError> {
+    pub fn match_reveal(&self, arg: &dyn Any, buf: &mut String) -> Result<(), TildeError> {
         //dbg!(arg);
         //dbg!(&self);
         match self {

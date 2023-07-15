@@ -31,6 +31,19 @@ macro_rules! multi_tilde_impl {
     };
 }
 
+#[macro_export]
+macro_rules! multi_tilde_impl2 {
+    ($implName:ident, [$($y:ident),+], $s:ident, $buf:ident, $method_name:ident, $body:block) => {
+		$(
+			impl $implName for $y {
+				fn $method_name(&$s, _: &TildeKind, $buf: &mut String) -> Result<(), TildeError>
+					$body
+
+			}
+		)+
+    };
+}
+
 /// add the &dyn TildeAble to the expr
 #[macro_export]
 macro_rules! tilde {
