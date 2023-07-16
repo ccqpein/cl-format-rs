@@ -14,4 +14,4 @@ readme = "../README.md"
 bench = false
 
 [dependencies]
-cl-format-macros = { version = "0.1.3", path = "../cl-format-macros" }
+cl-format-macros = { version = "0.1.4", path = "../cl-format-macros" }
