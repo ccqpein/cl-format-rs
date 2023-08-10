@@ -1,6 +1,5 @@
 #![feature(let_chains)]
 #![feature(pattern)]
-#![feature(rustc_attrs)]
 
 mod control_str;
 mod tildes;

@@ -79,9 +79,13 @@ pub enum TildeKind {
     #[implTo(char)]
     Char(CharKind),
 
-    /// ~$ ~5$ ~f
     //:= next
+    /// ~$ ~5$ ~f
     Float(Option<String>),
+
+    /// Tilde R: Radix, [doc](http://www.lispworks.com/documentation/lw50/CLHS/Body/22_cba.htm)
+    // radix,mincol,padchar,commachar,comma-interval
+    Radix((usize, usize, char, char, usize)),
 
     /// ~d ~:d ~:@d
     #[implTo(i32, i64, u32, u64, usize)]
@@ -121,8 +125,6 @@ pub enum TildeKind {
 
 impl TildeKind {
     pub fn match_reveal(&self, arg: &dyn TildeAble, buf: &mut String) -> Result<(), TildeError> {
-        //dbg!(arg);
-        //dbg!(&self);
         match self {
             TildeKind::Char(_) => {
                 let a = arg.into_tildekind_char().ok_or::<TildeError>(
@@ -199,6 +201,7 @@ impl TildeKind {
                 )?;
                 return a.format(self, buf);
             }
+            _ => unimplemented!(),
         }
     }
 }

@@ -13,6 +13,8 @@
 - [ ] [[http://www.lispworks.com/documentation/lw50/CLHS/Body/22_cbc.htm][B: Binary]]
 - [ ] [[http://www.lispworks.com/documentation/lw50/CLHS/Body/22_cbd.htm][O: Octal]]
 - [ ] [[http://www.lispworks.com/documentation/lw50/CLHS/Body/22_cbe.htm][X: Hexadecimal]]
+- [ ] [[http://www.lispworks.com/documentation/lw50/CLHS/Body/22_cca.htm][F: Fixed-Format Floating-Point]]
+- [ ] [[http://www.lispworks.com/documentation/lw50/CLHS/Body/22_ccd.htm][Dollarsign: Monetary Floating-Point]]
 - [X] [[http://www.lispworks.com/documentation/lw50/CLHS/Body/22_cdb.htm][S: Standard]]
   
 ** DONE macro for usage

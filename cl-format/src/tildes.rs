@@ -58,108 +58,75 @@ impl Tilde {
             return Err(TildeError::new(ErrorKind::ParseError, "should start with ~").into());
         }
 
-        // read until the tilde key char
-        let mut buf = [0_u8; 3];
+        let mut bucket = vec![b'~'];
         let mut buf_offset = 1;
-        c.read(&mut buf)
-            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
-        for b in buf {
-            if b == 0_u8 {
-                break;
-            } else {
-                buf_offset += 1;
-            }
-        }
 
-        //dbg!(&c);
-        //dbg!(String::from_utf8(buf.to_vec()));
+        loop {
+            if c.read(&mut buf)
+                .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?
+                == 0
+                || buf[0] == 0_u8
+            {
+                return Err(TildeError::new(ErrorKind::ParseError, "read to end"));
+            }
 
-        match buf {
-            [b'a', ..] | [b'A', ..] => {
-                c.seek(SeekFrom::Current(-buf_offset))
-                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
-                return Ok(
-                    #[rustc_box]
-                    Box::new(Self::parse_value),
-                );
-            }
-            [b'{', ..] | [b'@', b'{', ..] => {
-                c.seek(SeekFrom::Current(-buf_offset))
-                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
-                return Ok(
-                    #[rustc_box]
-                    Box::new(Self::parse_loop),
-                );
-            }
-            [b'$', ..] | [b'f' | b'F', ..] | [_, b'$', ..] => {
-                c.seek(SeekFrom::Current(-buf_offset))
-                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
-                return Ok(
-                    #[rustc_box]
-                    Box::new(Self::parse_float),
-                );
-            }
-            [b'd', ..] | [b'D', ..] => {
-                c.seek(SeekFrom::Current(-buf_offset))
-                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
-                return Ok(
-                    #[rustc_box]
-                    Box::new(Self::parse_digit),
-                );
-            }
-            [b'[', ..] | [b'#' | b':' | b'@', b'[', ..] => {
-                c.seek(SeekFrom::Current(-buf_offset))
-                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
-                return Ok(
-                    #[rustc_box]
-                    Box::new(Self::parse_cond),
-                );
-            }
-            [b'^', ..] => {
-                c.seek(SeekFrom::Current(-buf_offset))
-                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
-                return Ok(
-                    #[rustc_box]
-                    Box::new(Self::parse_loop_end),
-                );
-            }
-            [b':', b'*', ..] | [b'*', ..] => {
-                c.seek(SeekFrom::Current(-buf_offset))
-                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
-                return Ok(
-                    #[rustc_box]
-                    Box::new(Self::parse_star),
-                );
-            }
-            [_, b'~', ..] => {
-                //:= can only parse the one digit number
-                c.seek(SeekFrom::Current(-buf_offset))
-                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
-                return Ok(
-                    #[rustc_box]
-                    Box::new(Self::parse_tildes),
-                );
-            }
-            [b'S', ..] | [b's', ..] => {
-                c.seek(SeekFrom::Current(-buf_offset))
-                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
-                return Ok(
-                    #[rustc_box]
-                    Box::new(Self::parse_standard),
-                );
-            }
-            [b'C', ..] | [b'c', ..] | [b'@', b'c' | b'C', ..] => {
-                c.seek(SeekFrom::Current(-buf_offset))
-                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
-                return Ok(
-                    #[rustc_box]
-                    Box::new(Self::parse_char),
-                );
-            }
-            _ => {
-                return Err(
-                    TildeError::new(ErrorKind::ParseError, "cannot find the key tilde").into(),
-                )
+            buf_offset += 1;
+            bucket.extend_from_slice(&buf);
+            //dbg!(&bucket);
+
+            match &bucket[..] {
+                [.., b'a'] | [.., b'A'] => {
+                    c.seek(SeekFrom::Current(-buf_offset))
+                        .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
+                    return Ok(Box::new(Self::parse_value));
+                }
+                [.., b'@', b'{'] | [.., b'{'] => {
+                    c.seek(SeekFrom::Current(-buf_offset))
+                        .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
+                    return Ok(Box::new(Self::parse_loop));
+                }
+                [.., _, b'$'] | [.., b'$'] | [.., b'f' | b'F'] => {
+                    c.seek(SeekFrom::Current(-buf_offset))
+                        .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
+                    return Ok(Box::new(Self::parse_float));
+                }
+                [.., b'd'] | [.., b'D'] => {
+                    c.seek(SeekFrom::Current(-buf_offset))
+                        .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
+                    return Ok(Box::new(Self::parse_digit));
+                }
+                [.., b'#' | b':' | b'@', b'['] | [.., b'['] => {
+                    c.seek(SeekFrom::Current(-buf_offset))
+                        .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
+                    return Ok(Box::new(Self::parse_cond));
+                }
+                [.., b'^'] => {
+                    c.seek(SeekFrom::Current(-buf_offset))
+                        .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
+                    return Ok(Box::new(Self::parse_loop_end));
+                }
+                [.., b':', b'*'] | [.., b'*'] => {
+                    c.seek(SeekFrom::Current(-buf_offset))
+                        .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
+                    return Ok(Box::new(Self::parse_star));
+                }
+                [.., _, b'~'] => {
+                    //:= can only parse the one digit number
+                    c.seek(SeekFrom::Current(-buf_offset))
+                        .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
+                    return Ok(Box::new(Self::parse_tildes));
+                }
+                [.., b'S'] | [.., b's'] => {
+                    c.seek(SeekFrom::Current(-buf_offset))
+                        .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
+                    return Ok(Box::new(Self::parse_standard));
+                }
+                [.., b'@', b'c' | b'C'] | [.., b'C'] | [.., b'c'] => {
+                    c.seek(SeekFrom::Current(-buf_offset))
+                        .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
+                    return Ok(Box::new(Self::parse_char));
+                }
+                _ => {}
             }
         }
     }
@@ -637,6 +604,10 @@ impl Tilde {
                 );
             }
         }
+    }
+
+    fn parse_radix(c: &mut Cursor<&'_ str>) -> Result<Self, TildeError> {
+        todo!()
     }
 
     // more parsers functions below
