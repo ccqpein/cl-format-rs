@@ -664,24 +664,55 @@ impl Tilde {
             ));
         }
 
-        dbg!(splited_bucket);
+        //dbg!(&splited_bucket);
 
-        Ok(Self::new(2, TildeKind::Va))
+        // helper function for parsing the usize
+        let parse_usize_helper = |a: &str| -> Result<Option<usize>, TildeError> {
+            if a.len() == 0 {
+                Ok(None)
+            } else {
+                Ok(Some(a.parse::<usize>().map_err(|e| {
+                    TildeError::new(ErrorKind::ParseError, e.to_string())
+                })?))
+            }
+        };
 
-        // Ok(Self::new(
-        //     bucket.len(),
-        //     TildeKind::Radix(
-        //         splited_bucket[0]
-        //             .parse::<usize>()
-        //             .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?,
-        //         splited_bucket[1]
-        //             .parse()
-        //             .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?,
-        //         splited_bucket[2].chars().unwrap_or(''),
-        //         splited_bucket[3].chars().unwrap_or(''),
-        //         0,
-        //     ),
-        // ))
+        // helper function for parsing the char
+        let parse_char_helper = |a: &str| -> Result<Option<char>, TildeError> {
+            if a.len() == 0 {
+                Ok(None)
+            } else {
+                Ok(a.chars().next())
+            }
+        };
+
+        let last_radix = splited_bucket[4];
+        let colon_flag = if last_radix.len() >= 2
+            && last_radix
+                .get(last_radix.len() - 2..last_radix.len() - 1)
+                .unwrap()
+                == ":"
+        {
+            true
+        } else {
+            false
+        };
+
+        Ok(Self::new(
+            bucket.len(),
+            TildeKind::Radix((
+                parse_usize_helper(splited_bucket[0])?,
+                parse_usize_helper(splited_bucket[1])?,
+                parse_char_helper(splited_bucket[2])?,
+                parse_char_helper(splited_bucket[3])?,
+                if colon_flag {
+                    parse_usize_helper(&splited_bucket[4].get(0..last_radix.len() - 2).unwrap())?
+                } else {
+                    parse_usize_helper(&splited_bucket[4].get(0..last_radix.len() - 1).unwrap())?
+                },
+                colon_flag,
+            )),
+        ))
     }
 
     // more parsers functions below
@@ -1279,7 +1310,25 @@ mod tests {
         let mut case = Cursor::new("~2,8,0, ,R");
         assert_eq!(
             Tilde::parse(&mut case)?,
-            Tilde::new(12, TildeKind::Char(CharKind::Nil))
+            Tilde::new(
+                10,
+                TildeKind::Radix((Some(2), Some(8), Some('0'), Some(' '), None, false))
+            )
+        );
+
+        let mut case = Cursor::new("~,,,,R");
+        assert_eq!(
+            Tilde::parse(&mut case)?,
+            Tilde::new(6, TildeKind::Radix((None, None, None, None, None, false)))
+        );
+
+        let mut case = Cursor::new("~2,8,0, ,4:R");
+        assert_eq!(
+            Tilde::parse(&mut case)?,
+            Tilde::new(
+                12,
+                TildeKind::Radix((Some(2), Some(8), Some('0'), Some(' '), Some(4), true))
+            )
         );
 
         Ok(())

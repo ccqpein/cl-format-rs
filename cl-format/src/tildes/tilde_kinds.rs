@@ -91,7 +91,8 @@ pub enum TildeKind {
             Option<usize>,
             Option<char>,
             Option<char>,
-            Option<usize>,
+            Option<usize>, // radix
+            bool,          // colon flag
         ),
     ),
 
