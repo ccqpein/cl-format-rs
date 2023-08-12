@@ -84,6 +84,7 @@ pub enum TildeKind {
     Float(Option<String>),
 
     /// Tilde R: Radix, [doc](http://www.lispworks.com/documentation/lw50/CLHS/Body/22_cba.htm)
+    //:= Next: #[implTo(i32, i64, u32, u64, usize)]
     // radix,mincol,padchar,commachar,comma-interval
     Radix(
         (
@@ -210,6 +211,7 @@ impl TildeKind {
                 )?;
                 return a.format(self, buf);
             }
+            //:= Next: Radix
             _ => unimplemented!(),
         }
     }

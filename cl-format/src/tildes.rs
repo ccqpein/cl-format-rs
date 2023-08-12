@@ -1331,6 +1331,24 @@ mod tests {
             )
         );
 
+        let mut case = Cursor::new("~2,8,0, ,10:R");
+        assert_eq!(
+            Tilde::parse(&mut case)?,
+            Tilde::new(
+                13,
+                TildeKind::Radix((Some(2), Some(8), Some('0'), Some(' '), Some(10), true))
+            )
+        );
+
+        let mut case = Cursor::new("~3,,, ,2:R");
+        assert_eq!(
+            Tilde::parse(&mut case)?,
+            Tilde::new(
+                10,
+                TildeKind::Radix((Some(3), None, None, Some(' '), Some(2), true))
+            )
+        );
+
         Ok(())
     }
 }
