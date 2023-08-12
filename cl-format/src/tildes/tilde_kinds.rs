@@ -85,7 +85,15 @@ pub enum TildeKind {
 
     /// Tilde R: Radix, [doc](http://www.lispworks.com/documentation/lw50/CLHS/Body/22_cba.htm)
     // radix,mincol,padchar,commachar,comma-interval
-    Radix((usize, usize, char, char, usize)),
+    Radix(
+        (
+            Option<usize>,
+            Option<usize>,
+            Option<char>,
+            Option<char>,
+            Option<usize>,
+        ),
+    ),
 
     /// ~d ~:d ~:@d
     #[implTo(i32, i64, u32, u64, usize)]
