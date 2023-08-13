@@ -1,6 +1,7 @@
 use crate::*;
 
 use std::cell::RefCell;
+use std::collections::VecDeque;
 use std::fmt::Debug;
 use std::io::{BufRead, Cursor, Read, Seek, SeekFrom};
 use std::ops::Deref;
@@ -656,13 +657,7 @@ impl Tilde {
         let whole = String::from_utf8(bucket[1..].to_vec())
             .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
 
-        let splited_bucket = whole.split(',').collect::<Vec<_>>();
-        if splited_bucket.len() != 5 {
-            return Err(TildeError::new(
-                ErrorKind::ParseError,
-                "Length of Radix arguments isn't right",
-            ));
-        }
+        let mut splited_bucket = whole.split(',').collect::<VecDeque<_>>();
 
         //dbg!(&splited_bucket);
 
@@ -686,30 +681,62 @@ impl Tilde {
             }
         };
 
-        let last_radix = splited_bucket[4];
-        let colon_flag = if last_radix.len() >= 2
-            && last_radix
-                .get(last_radix.len() - 2..last_radix.len() - 1)
-                .unwrap()
-                == ":"
-        {
-            true
+        let mut colon_flag = false;
+        let radix;
+        let mut mincol = None;
+        let mut padchar = None;
+        let mut commachar = None;
+        let mut comma_interval = None;
+
+        // if there is no comma
+        if splited_bucket.len() == 1 {
+            let ra = splited_bucket.pop_front().unwrap();
+            let ras = ra.split(':').collect::<Vec<_>>();
+            if ras.len() == 2 {
+                colon_flag = true;
+                radix = parse_usize_helper(ra.get(0..ra.len() - 2).unwrap())?;
+            } else if ras.len() == 1 {
+                radix = parse_usize_helper(ra.get(0..ra.len() - 1).unwrap())?;
+            } else {
+                return Err(TildeError::new(
+                    ErrorKind::ParseError,
+                    "Last radix argument can only accept one ':'",
+                ));
+            }
+        } else if splited_bucket.len() == 5 {
+            radix = parse_usize_helper(splited_bucket.pop_front().unwrap())?;
+            mincol = parse_usize_helper(splited_bucket.pop_front().unwrap())?;
+            padchar = parse_char_helper(splited_bucket.pop_front().unwrap())?;
+            commachar = parse_char_helper(splited_bucket.pop_front().unwrap())?;
+
+            let ra = splited_bucket.pop_front().unwrap();
+            let ras = ra.split(':').collect::<Vec<_>>();
+            if ras.len() == 2 {
+                colon_flag = true;
+                comma_interval = parse_usize_helper(ra.get(0..ra.len() - 2).unwrap())?;
+            } else if ras.len() == 1 {
+                comma_interval = parse_usize_helper(ra.get(0..ra.len() - 1).unwrap())?;
+            } else {
+                return Err(TildeError::new(
+                    ErrorKind::ParseError,
+                    "Last radix argument can only accept one ':'",
+                ));
+            }
         } else {
-            false
-        };
+            return Err(TildeError::new(
+                ErrorKind::ParseError,
+                "The number of radix interval spaces should be 1 or 5",
+            ));
+        }
 
         Ok(Self::new(
             bucket.len(),
             TildeKind::Radix((
-                parse_usize_helper(splited_bucket[0])?,
-                parse_usize_helper(splited_bucket[1])?,
-                parse_char_helper(splited_bucket[2])?,
-                parse_char_helper(splited_bucket[3])?,
-                if colon_flag {
-                    parse_usize_helper(&splited_bucket[4].get(0..last_radix.len() - 2).unwrap())?
-                } else {
-                    parse_usize_helper(&splited_bucket[4].get(0..last_radix.len() - 1).unwrap())?
-                },
+                radix,
+                mincol,
+                padchar,
+                commachar,
+                comma_interval,
                 colon_flag,
             )),
         ))
@@ -1347,6 +1374,27 @@ mod tests {
                 10,
                 TildeKind::Radix((Some(3), None, None, Some(' '), Some(2), true))
             )
+        );
+
+        let mut case = Cursor::new("~2:R");
+        assert_eq!(
+            Tilde::parse(&mut case)?,
+            Tilde::new(4, TildeKind::Radix((Some(2), None, None, None, None, true)))
+        );
+
+        let mut case = Cursor::new("~2R");
+        assert_eq!(
+            Tilde::parse(&mut case)?,
+            Tilde::new(
+                3,
+                TildeKind::Radix((Some(2), None, None, None, None, false))
+            )
+        );
+
+        let mut case = Cursor::new("~R");
+        assert_eq!(
+            Tilde::parse(&mut case)?,
+            Tilde::new(2, TildeKind::Radix((None, None, None, None, None, false)))
         );
 
         Ok(())

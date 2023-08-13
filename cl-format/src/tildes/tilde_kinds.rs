@@ -92,7 +92,7 @@ pub enum TildeKind {
             Option<usize>,
             Option<char>,
             Option<char>,
-            Option<usize>, // radix
+            Option<usize>, // comma-interval
             bool,          // colon flag
         ),
     ),
