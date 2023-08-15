@@ -75,30 +75,29 @@ pub enum CharKind {
 
 #[derive(Debug, PartialEq, TildeAble, Clone)]
 pub enum TildeKind {
-    /// ~C ~:C
     #[implTo(char)]
+    /// ~C ~:C
     Char(CharKind),
 
     //:= next
     /// ~$ ~5$ ~f
     Float(Option<String>),
 
+    #[implTo(i32, i64, u32, u64, usize)]
     /// Tilde R: Radix, [doc](http://www.lispworks.com/documentation/lw50/CLHS/Body/22_cba.htm)
-    //:= Next: #[implTo(i32, i64, u32, u64, usize)]
-    // radix,mincol,padchar,commachar,comma-interval
     Radix(
         (
-            Option<usize>,
-            Option<usize>,
-            Option<char>,
-            Option<char>,
+            Option<usize>, // radix
+            Option<usize>, // mincol
+            Option<char>,  // padchar
+            Option<char>,  // commachar
             Option<usize>, // comma-interval
             bool,          // colon flag
         ),
     ),
 
-    /// ~d ~:d ~:@d
     #[implTo(i32, i64, u32, u64, usize)]
+    /// ~d ~:d ~:@d
     Digit(Option<String>),
 
     #[implTo(f32, f64, char, i32, i64, usize, bool, u32, u64, String, TildeNil)]
@@ -128,8 +127,8 @@ pub enum TildeKind {
     /// text inside the tilde
     Text(String),
 
-    /// vec
     #[implTo(TildeNil)]
+    /// vec
     VecTilde(Vec<Tilde>),
 }
 

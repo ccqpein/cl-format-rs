@@ -322,3 +322,86 @@ multi_tilde_impl!(
         Ok(())
     }
 );
+
+//========================================
+// TildeKindRadix
+//========================================
+//: DEL: multi_tilde_impl!(TildeKindRadix, [i32, i64, u32, u64, usize], self, buf, {
+//: DEL:     //:= TODO
+//: DEL:     Ok(())
+//: DEL: });
+
+//:= Next
+
+const NUMERALS: [(usize, [&'static str; 10]); 4] = [
+    (
+        1000,
+        ["", "M", "MM", "MMM", "--", "-", "--", "---", "----", "--"],
+    ),
+    (
+        100,
+        ["", "C", "CC", "CCC", "CD", "D", "DC", "DCC", "DCCC", "CM"],
+    ),
+    (
+        10,
+        ["", "X", "XX", "XXX", "XL", "L", "LX", "LXX", "LXXX", "XC"],
+    ),
+    (
+        1,
+        ["", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX"],
+    ),
+];
+
+/// make roman
+fn into_roman(n: usize) -> Result<String, TildeError> {
+    if n > 3999 {
+        return Err(TildeError::new(
+            ErrorKind::FormatError,
+            "number is too big to reveal as roman numerals",
+        ));
+    }
+    Ok(NUMERALS
+        .iter()
+        .map(|&(base, nums)| nums[(n / base) % 10])
+        .collect())
+}
+
+impl TildeKindRadix for i32 {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+        //:= need to check tkind
+
+        if *self <= 0 {
+            Err(TildeError::new(
+                ErrorKind::FormatError,
+                "negative cannot be roman numerals",
+            ))
+        } else {
+            buf.push_str(&into_roman(*self as usize)?);
+            Ok(())
+        }
+    }
+}
+
+impl TildeKindRadix for i64 {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+        Err(TildeError::new(ErrorKind::EmptyImplenmentError, "haven't implenmented yet").into())
+    }
+}
+
+impl TildeKindRadix for u32 {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+        Err(TildeError::new(ErrorKind::EmptyImplenmentError, "haven't implenmented yet").into())
+    }
+}
+
+impl TildeKindRadix for u64 {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+        Err(TildeError::new(ErrorKind::EmptyImplenmentError, "haven't implenmented yet").into())
+    }
+}
+
+impl TildeKindRadix for usize {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+        Err(TildeError::new(ErrorKind::EmptyImplenmentError, "haven't implenmented yet").into())
+    }
+}
