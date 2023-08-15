@@ -368,7 +368,12 @@ fn into_roman(n: usize) -> Result<String, TildeError> {
 
 impl TildeKindRadix for i32 {
     fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
-        //:= need to check tkind
+        match tkind {
+            TildeKind::Radix((radix, mincol, padchar, commachar, comma_interval, flag)) => {
+                //:= TODO:
+            }
+            _ => (),
+        }
 
         if *self <= 0 {
             Err(TildeError::new(

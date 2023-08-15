@@ -681,7 +681,23 @@ impl Tilde {
             }
         };
 
-        let mut colon_flag = false;
+        // helper function for parsing the radix flag
+        let parse_radix_flag = |a: &str| -> Result<(Option<usize>, Option<RadixFlag>), TildeError> {
+            match &a.split(':').collect::<Vec<_>>()[..] {
+                ["", "R"] => Ok((None, Some(RadixFlag::Colon))),
+                ["@R"] => Ok((None, Some(RadixFlag::At))),
+                ["", "@R"] => Ok((None, Some(RadixFlag::AtColon))),
+                ["R"] => Ok((None, None)),
+                [n @ _, "R"] => Ok((parse_usize_helper(n)?, Some(RadixFlag::Colon))),
+                [n @ _] if n.ends_with("R") => Ok((parse_usize_helper(&n[0..n.len() - 1])?, None)),
+                _ => Err(TildeError::new(
+                    ErrorKind::ParseError,
+                    format!("Parsing the radix flag has problem: {}", a),
+                )),
+            }
+        };
+
+        let flag;
         let radix;
         let mut mincol = None;
         let mut padchar = None;
@@ -691,18 +707,7 @@ impl Tilde {
         // if there is no comma
         if splited_bucket.len() == 1 {
             let ra = splited_bucket.pop_front().unwrap();
-            let ras = ra.split(':').collect::<Vec<_>>();
-            if ras.len() == 2 {
-                colon_flag = true;
-                radix = parse_usize_helper(ra.get(0..ra.len() - 2).unwrap())?;
-            } else if ras.len() == 1 {
-                radix = parse_usize_helper(ra.get(0..ra.len() - 1).unwrap())?;
-            } else {
-                return Err(TildeError::new(
-                    ErrorKind::ParseError,
-                    "Last radix argument can only accept one ':'",
-                ));
-            }
+            (radix, flag) = parse_radix_flag(&ra)?;
         } else if splited_bucket.len() == 5 {
             radix = parse_usize_helper(splited_bucket.pop_front().unwrap())?;
             mincol = parse_usize_helper(splited_bucket.pop_front().unwrap())?;
@@ -710,18 +715,7 @@ impl Tilde {
             commachar = parse_char_helper(splited_bucket.pop_front().unwrap())?;
 
             let ra = splited_bucket.pop_front().unwrap();
-            let ras = ra.split(':').collect::<Vec<_>>();
-            if ras.len() == 2 {
-                colon_flag = true;
-                comma_interval = parse_usize_helper(ra.get(0..ra.len() - 2).unwrap())?;
-            } else if ras.len() == 1 {
-                comma_interval = parse_usize_helper(ra.get(0..ra.len() - 1).unwrap())?;
-            } else {
-                return Err(TildeError::new(
-                    ErrorKind::ParseError,
-                    "Last radix argument can only accept one ':'",
-                ));
-            }
+            (comma_interval, flag) = parse_radix_flag(&ra)?;
         } else {
             return Err(TildeError::new(
                 ErrorKind::ParseError,
@@ -731,14 +725,7 @@ impl Tilde {
 
         Ok(Self::new(
             bucket.len(),
-            TildeKind::Radix((
-                radix,
-                mincol,
-                padchar,
-                commachar,
-                comma_interval,
-                colon_flag,
-            )),
+            TildeKind::Radix((radix, mincol, padchar, commachar, comma_interval, flag)),
         ))
     }
 
@@ -1339,14 +1326,14 @@ mod tests {
             Tilde::parse(&mut case)?,
             Tilde::new(
                 10,
-                TildeKind::Radix((Some(2), Some(8), Some('0'), Some(' '), None, false))
+                TildeKind::Radix((Some(2), Some(8), Some('0'), Some(' '), None, None))
             )
         );
 
         let mut case = Cursor::new("~,,,,R");
         assert_eq!(
             Tilde::parse(&mut case)?,
-            Tilde::new(6, TildeKind::Radix((None, None, None, None, None, false)))
+            Tilde::new(6, TildeKind::Radix((None, None, None, None, None, None)))
         );
 
         let mut case = Cursor::new("~2,8,0, ,4:R");
@@ -1354,7 +1341,14 @@ mod tests {
             Tilde::parse(&mut case)?,
             Tilde::new(
                 12,
-                TildeKind::Radix((Some(2), Some(8), Some('0'), Some(' '), Some(4), true))
+                TildeKind::Radix((
+                    Some(2),
+                    Some(8),
+                    Some('0'),
+                    Some(' '),
+                    Some(4),
+                    Some(RadixFlag::Colon)
+                ))
             )
         );
 
@@ -1363,7 +1357,14 @@ mod tests {
             Tilde::parse(&mut case)?,
             Tilde::new(
                 13,
-                TildeKind::Radix((Some(2), Some(8), Some('0'), Some(' '), Some(10), true))
+                TildeKind::Radix((
+                    Some(2),
+                    Some(8),
+                    Some('0'),
+                    Some(' '),
+                    Some(10),
+                    Some(RadixFlag::Colon)
+                ))
             )
         );
 
@@ -1372,29 +1373,63 @@ mod tests {
             Tilde::parse(&mut case)?,
             Tilde::new(
                 10,
-                TildeKind::Radix((Some(3), None, None, Some(' '), Some(2), true))
+                TildeKind::Radix((
+                    Some(3),
+                    None,
+                    None,
+                    Some(' '),
+                    Some(2),
+                    Some(RadixFlag::Colon)
+                ))
             )
         );
 
         let mut case = Cursor::new("~2:R");
         assert_eq!(
             Tilde::parse(&mut case)?,
-            Tilde::new(4, TildeKind::Radix((Some(2), None, None, None, None, true)))
+            Tilde::new(
+                4,
+                TildeKind::Radix((Some(2), None, None, None, None, Some(RadixFlag::Colon)))
+            )
         );
 
         let mut case = Cursor::new("~2R");
         assert_eq!(
             Tilde::parse(&mut case)?,
-            Tilde::new(
-                3,
-                TildeKind::Radix((Some(2), None, None, None, None, false))
-            )
+            Tilde::new(3, TildeKind::Radix((Some(2), None, None, None, None, None)))
         );
 
         let mut case = Cursor::new("~R");
         assert_eq!(
             Tilde::parse(&mut case)?,
-            Tilde::new(2, TildeKind::Radix((None, None, None, None, None, false)))
+            Tilde::new(2, TildeKind::Radix((None, None, None, None, None, None)))
+        );
+
+        let mut case = Cursor::new("~:R");
+        assert_eq!(
+            Tilde::parse(&mut case)?,
+            Tilde::new(
+                3,
+                TildeKind::Radix((None, None, None, None, None, Some(RadixFlag::Colon)))
+            )
+        );
+
+        let mut case = Cursor::new("~@R");
+        assert_eq!(
+            Tilde::parse(&mut case)?,
+            Tilde::new(
+                3,
+                TildeKind::Radix((None, None, None, None, None, Some(RadixFlag::At)))
+            )
+        );
+
+        let mut case = Cursor::new("~:@R");
+        assert_eq!(
+            Tilde::parse(&mut case)?,
+            Tilde::new(
+                4,
+                TildeKind::Radix((None, None, None, None, None, Some(RadixFlag::AtColon)))
+            )
         );
 
         Ok(())

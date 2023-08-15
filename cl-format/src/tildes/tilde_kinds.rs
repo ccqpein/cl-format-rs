@@ -73,6 +73,13 @@ pub enum CharKind {
     At,
 }
 
+#[derive(Debug, PartialEq, Clone)]
+pub enum RadixFlag {
+    At,      // ~@R
+    Colon,   // ~:R
+    AtColon, // ~:@R
+}
+
 #[derive(Debug, PartialEq, TildeAble, Clone)]
 pub enum TildeKind {
     #[implTo(char)]
@@ -87,12 +94,12 @@ pub enum TildeKind {
     /// Tilde R: Radix, [doc](http://www.lispworks.com/documentation/lw50/CLHS/Body/22_cba.htm)
     Radix(
         (
-            Option<usize>, // radix
-            Option<usize>, // mincol
-            Option<char>,  // padchar
-            Option<char>,  // commachar
-            Option<usize>, // comma-interval
-            bool,          // colon flag
+            Option<usize>,     // radix
+            Option<usize>,     // mincol
+            Option<char>,      // padchar
+            Option<char>,      // commachar
+            Option<usize>,     // comma-interval
+            Option<RadixFlag>, // flag
         ),
     ),
 
