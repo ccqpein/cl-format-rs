@@ -704,6 +704,7 @@ impl Tilde {
         let mut commachar = None;
         let mut comma_interval = None;
 
+        // has to be 1 or 5
         // if there is no comma
         if splited_bucket.len() == 1 {
             let ra = splited_bucket.pop_front().unwrap();

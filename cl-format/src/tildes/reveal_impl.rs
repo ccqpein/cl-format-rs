@@ -1,3 +1,5 @@
+use std::iter::successors;
+
 use super::*;
 
 //========================================
@@ -326,10 +328,6 @@ multi_tilde_impl!(
 //========================================
 // TildeKindRadix
 //========================================
-//: DEL: multi_tilde_impl!(TildeKindRadix, [i32, i64, u32, u64, usize], self, buf, {
-//: DEL:     //:= TODO
-//: DEL:     Ok(())
-//: DEL: });
 
 //:= Next
 
@@ -366,13 +364,114 @@ fn into_roman(n: usize) -> Result<String, TildeError> {
         .collect())
 }
 
+/// make number
+
+const ONES: [&str; 20] = [
+    "zero",
+    "one",
+    "two",
+    "three",
+    "four",
+    "five",
+    "six",
+    "seven",
+    "eight",
+    "nine",
+    "ten",
+    "eleven",
+    "twelve",
+    "thirteen",
+    "fourteen",
+    "fifteen",
+    "sixteen",
+    "seventeen",
+    "eighteen",
+    "nineteen",
+];
+const TENS: [&str; 10] = [
+    "zero", "ten", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety",
+];
+const ORDERS: [&str; 7] = [
+    "zero",
+    "thousand",
+    "million",
+    "billion",
+    "trillion",
+    "quadrillion",
+    "quintillion", // enough for u64::MAX
+];
+
+pub fn into_english(num: usize, buf: &mut String) {
+    match num {
+        0..=19 => {
+            buf.push_str(ONES[num as usize]);
+        }
+        20..=99 => {
+            let upper = (num / 10) as usize;
+            match num % 10 {
+                0 => buf.push_str(TENS[upper]),
+                lower => {
+                    buf.push_str(TENS[upper]);
+                    buf.push_str("-");
+                    into_english(lower, buf);
+                }
+            }
+        }
+        100..=999 => format_num(num, 100, "hundred", buf),
+        _ => {
+            let (div, order) = successors(Some(1_usize), |v| v.checked_mul(1000_usize))
+                .zip(ORDERS.iter())
+                .find(|&(e, _)| e > num / 1000)
+                .unwrap();
+
+            format_num(num, div, order, buf)
+        }
+    }
+}
+
+fn format_num(num: usize, div: usize, order: &str, buf: &mut String) {
+    match (num / div, num % div) {
+        (upper, 0) => {
+            into_english(upper, buf);
+            buf.push_str(" ");
+            buf.push_str(order)
+        }
+        (upper, lower) => {
+            into_english(upper, buf);
+            buf.push_str(" ");
+            buf.push_str(order);
+            buf.push_str(" ");
+            into_english(lower, buf);
+        }
+    }
+}
+
 impl TildeKindRadix for i32 {
     fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         match tkind {
             TildeKind::Radix((radix, mincol, padchar, commachar, comma_interval, flag)) => {
                 //:= TODO:
+                match (radix, mincol, padchar, commachar, comma_interval, flag) {
+                    (None, None, None, None, None, None) => {
+                        // ~R
+                        if *self < 0 {
+                            buf.push_str("negative");
+                            into_english(self.abs() as usize, buf)
+                        } else {
+                            into_english(self.abs() as usize, buf)
+                        }
+                    }
+                    (None, None, None, None, None, Some(RadixFlag::Colon)) => {
+                        // ~:R
+                    }
+                    _ => unimplemented!(),
+                }
             }
-            _ => (),
+            _ => {
+                return Err(
+                    TildeError::new(ErrorKind::RevealError, "cannot format to Radix").into(),
+                )
+            }
         }
 
         if *self <= 0 {
@@ -408,5 +507,26 @@ impl TildeKindRadix for u64 {
 impl TildeKindRadix for usize {
     fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         Err(TildeError::new(ErrorKind::EmptyImplenmentError, "haven't implenmented yet").into())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_into_english() {
+        let mut buf = String::new();
+        into_english(12345, &mut buf);
+
+        assert_eq!(
+            buf,
+            String::from("twelve thousand three hundred forty-five")
+        );
+
+        let mut buf = String::new();
+        into_english(0, &mut buf);
+
+        assert_eq!(buf, String::from("zero"))
     }
 }
