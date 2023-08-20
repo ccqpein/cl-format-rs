@@ -328,9 +328,6 @@ multi_tilde_impl!(
 //========================================
 // TildeKindRadix
 //========================================
-
-//:= Next
-
 const NUMERALS: [(usize, [&'static str; 10]); 4] = [
     (
         1000,
@@ -365,7 +362,6 @@ fn into_roman(n: usize) -> Result<String, TildeError> {
 }
 
 /// make number
-
 const ONES: [&str; 20] = [
     "zero",
     "one",
@@ -388,9 +384,47 @@ const ONES: [&str; 20] = [
     "eighteen",
     "nineteen",
 ];
+
+const ORDINAL_ONES: [&str; 20] = [
+    "zeroth",
+    "first",
+    "second",
+    "third",
+    "fourth",
+    "fifth",
+    "sixth",
+    "seventh",
+    "eighth",
+    "ninth",
+    "tenth",
+    "eleventh",
+    "twelfth",
+    "thirteenth",
+    "fourteenth",
+    "fifteenth",
+    "sixteenth",
+    "seventeenth",
+    "eighteenth",
+    "nineteenth",
+];
+
 const TENS: [&str; 10] = [
     "zero", "ten", "twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety",
 ];
+
+const ORDINAL_TENS: [&str; 10] = [
+    "zeroth",
+    "tenth",
+    "twentieth",
+    "thirtieth",
+    "fortieth",
+    "fiftieth",
+    "sixtieth",
+    "seventieth",
+    "eightieth",
+    "ninetieth",
+];
+
 const ORDERS: [&str; 7] = [
     "zero",
     "thousand",
@@ -399,6 +433,16 @@ const ORDERS: [&str; 7] = [
     "trillion",
     "quadrillion",
     "quintillion", // enough for u64::MAX
+];
+
+const ORDINAL_ORDERS: [&str; 7] = [
+    "zeroth",
+    "thousandth",
+    "millionth",
+    "billionth",
+    "trillionth",
+    "quadrillionth",
+    "quintillionth", // enough for u64::MAX
 ];
 
 pub fn into_english(num: usize, buf: &mut String) {
@@ -446,6 +490,58 @@ fn format_num(num: usize, div: usize, order: &str, buf: &mut String) {
     }
 }
 
+pub fn into_ordinal_english(num: usize, buf: &mut String) {
+    match num {
+        0..=19 => {
+            buf.push_str(ORDINAL_ONES[num as usize]);
+        }
+        20..=99 => {
+            let upper = (num / 10) as usize;
+            match num % 10 {
+                0 => buf.push_str(ORDINAL_TENS[upper]),
+                lower => {
+                    buf.push_str(TENS[upper]);
+                    buf.push_str("-");
+                    into_ordinal_english(lower, buf);
+                }
+            }
+        }
+        100..=999 => format_ordinal_num(num, 100, "hundred", buf),
+        _ => {
+            let (div, order) = successors(Some(1_usize), |v| v.checked_mul(1000_usize))
+                .zip(ORDERS.iter())
+                .find(|&(e, _)| e > num / 1000)
+                .unwrap();
+            //dbg!(&div);
+            //dbg!(&order);
+            format_ordinal_num(num, div, order, buf)
+        }
+    }
+}
+
+fn orders_to_ordinal(order: &str) -> &str {
+    ORDINAL_ORDERS[ORDERS.iter().position(|s| *s == order).unwrap()]
+}
+
+fn format_ordinal_num(num: usize, div: usize, order: &str, buf: &mut String) {
+    //dbg!(&num);
+    //dbg!(&div);
+    match (num / div, num % div) {
+        (upper, 0) => {
+            into_english(upper, buf);
+            buf.push_str(" ");
+            buf.push_str(orders_to_ordinal(order))
+        }
+        (upper, lower) => {
+            into_english(upper, buf);
+            buf.push_str(" ");
+            buf.push_str(order);
+            buf.push_str(" ");
+            into_ordinal_english(lower, buf);
+        }
+    }
+}
+
 impl TildeKindRadix for i32 {
     fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         match tkind {
@@ -463,6 +559,30 @@ impl TildeKindRadix for i32 {
                     }
                     (None, None, None, None, None, Some(RadixFlag::Colon)) => {
                         // ~:R
+                        if *self < 0 {
+                            buf.push_str("negative");
+                            into_ordinal_english(self.abs() as usize, buf)
+                        } else {
+                            into_ordinal_english(self.abs() as usize, buf)
+                        }
+                    }
+                    (None, None, None, None, None, Some(RadixFlag::At)) => {
+                        // ~@R
+                        if *self <= 0 {
+                            return Err(TildeError::new(
+                                ErrorKind::FormatError,
+                                "negative cannot be roman numerals",
+                            ));
+                        } else {
+                            buf.push_str(&into_roman(*self as usize)?);
+                        }
+                    }
+
+                    (None, None, None, None, None, Some(RadixFlag::AtColon)) => {
+                        return Err(TildeError::new(
+                            ErrorKind::FormatError,
+                            "old Roman numeral haven't supported yet",
+                        ));
                     }
                     _ => unimplemented!(),
                 }
@@ -473,16 +593,7 @@ impl TildeKindRadix for i32 {
                 )
             }
         }
-
-        if *self <= 0 {
-            Err(TildeError::new(
-                ErrorKind::FormatError,
-                "negative cannot be roman numerals",
-            ))
-        } else {
-            buf.push_str(&into_roman(*self as usize)?);
-            Ok(())
-        }
+        Ok(())
     }
 }
 
@@ -518,7 +629,6 @@ mod tests {
     fn test_into_english() {
         let mut buf = String::new();
         into_english(12345, &mut buf);
-
         assert_eq!(
             buf,
             String::from("twelve thousand three hundred forty-five")
@@ -526,7 +636,47 @@ mod tests {
 
         let mut buf = String::new();
         into_english(0, &mut buf);
+        assert_eq!(buf, String::from("zero"));
 
-        assert_eq!(buf, String::from("zero"))
+        let mut buf = String::new();
+        into_english(1000000000000000001, &mut buf);
+        assert_eq!(buf, String::from("one quintillion one"));
+
+        let mut buf = String::new();
+        into_english(2132314453234, &mut buf);
+        assert_eq!(buf, String::from("two trillion one hundred thirty-two billion three hundred fourteen million four hundred fifty-three thousand two hundred thirty-four"));
+    }
+
+    #[test]
+    fn test_into_ordinal_english() {
+        let mut buf = String::new();
+        into_ordinal_english(55, &mut buf);
+
+        assert_eq!(buf, String::from("fifty-fifth"));
+
+        let mut buf = String::new();
+        into_ordinal_english(345, &mut buf);
+
+        assert_eq!(buf, String::from("three hundred forty-fifth"));
+
+        let mut buf = String::new();
+        into_ordinal_english(12345, &mut buf);
+
+        assert_eq!(
+            buf,
+            String::from("twelve thousand three hundred forty-fifth")
+        );
+
+        let mut buf = String::new();
+        into_ordinal_english(1000000000000000, &mut buf);
+        assert_eq!(buf, String::from("one quadrillionth"));
+
+        let mut buf = String::new();
+        into_ordinal_english(1000000000000000001, &mut buf);
+        assert_eq!(buf, String::from("one quintillion first"));
+
+        let mut buf = String::new();
+        into_ordinal_english(2132314453234, &mut buf);
+        assert_eq!(buf, String::from("two trillion one hundred thirty-two billion three hundred fourteen million four hundred fifty-three thousand two hundred thirty-fourth"));
     }
 }
