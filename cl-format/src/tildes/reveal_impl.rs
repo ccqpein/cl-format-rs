@@ -1,3 +1,5 @@
+use radix_fmt::{radix, Radix};
+use std::fmt::Write;
 use std::iter::successors;
 
 use super::*;
@@ -545,25 +547,37 @@ fn format_ordinal_num(num: usize, div: usize, order: &str, buf: &mut String) {
 impl TildeKindRadix for i32 {
     fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         match tkind {
-            TildeKind::Radix((radix, mincol, padchar, commachar, comma_interval, flag)) => {
-                //:= TODO:
-                match (radix, mincol, padchar, commachar, comma_interval, flag) {
-                    (None, None, None, None, None, None) => {
-                        // ~R
-                        if *self < 0 {
-                            buf.push_str("negative");
-                            into_english(self.abs() as usize, buf)
+            TildeKind::Radix((ra, mincol, padchar, commachar, comma_interval, flag)) => {
+                //:= TODO
+                match (ra, mincol, padchar, commachar, comma_interval, flag) {
+                    (ra, None, None, None, None, None) => {
+                        if ra.is_none() {
+                            // ~R
+                            if *self < 0 {
+                                buf.push_str("negative");
+                                into_english(self.abs() as usize, buf)
+                            } else {
+                                into_english(self.abs() as usize, buf)
+                            }
                         } else {
-                            into_english(self.abs() as usize, buf)
+                            // ~xR
+                            write!(buf, "{}", Radix::new(*self, ra.unwrap())).map_err(|e| {
+                                TildeError::new(ErrorKind::FormatError, e.to_string())
+                            })?
                         }
                     }
-                    (None, None, None, None, None, Some(RadixFlag::Colon)) => {
-                        // ~:R
-                        if *self < 0 {
-                            buf.push_str("negative");
-                            into_ordinal_english(self.abs() as usize, buf)
+                    (ra, None, None, None, None, Some(RadixFlag::Colon)) => {
+                        if ra.is_none() {
+                            // ~:R
+                            if *self < 0 {
+                                buf.push_str("negative");
+                                into_ordinal_english(self.abs() as usize, buf)
+                            } else {
+                                into_ordinal_english(self.abs() as usize, buf)
+                            }
                         } else {
-                            into_ordinal_english(self.abs() as usize, buf)
+                            // ~2:R
+                            //:= next
                         }
                     }
                     (None, None, None, None, None, Some(RadixFlag::At)) => {
@@ -584,6 +598,7 @@ impl TildeKindRadix for i32 {
                             "old Roman numeral haven't supported yet",
                         ));
                     }
+
                     _ => unimplemented!(),
                 }
             }
@@ -678,5 +693,12 @@ mod tests {
         let mut buf = String::new();
         into_ordinal_english(2132314453234, &mut buf);
         assert_eq!(buf, String::from("two trillion one hundred thirty-two billion three hundred fourteen million four hundred fifty-three thousand two hundred thirty-fourth"));
+    }
+
+    #[test]
+    fn test_radix_format() {
+        let mut buf = String::new();
+        assert!(write!(buf, "{}", Radix::new(17, 3)).is_ok());
+        assert_eq!(buf, String::from("122"));
     }
 }

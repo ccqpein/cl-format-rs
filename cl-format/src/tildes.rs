@@ -672,6 +672,16 @@ impl Tilde {
             }
         };
 
+        let parse_u8_helper = |a: &str| -> Result<Option<u8>, TildeError> {
+            if a.len() == 0 {
+                Ok(None)
+            } else {
+                Ok(Some(a.parse::<u8>().map_err(|e| {
+                    TildeError::new(ErrorKind::ParseError, e.to_string())
+                })?))
+            }
+        };
+
         // helper function for parsing the char
         let parse_char_helper = |a: &str| -> Result<Option<char>, TildeError> {
             if a.len() == 0 {
@@ -708,9 +718,10 @@ impl Tilde {
         // if there is no comma
         if splited_bucket.len() == 1 {
             let ra = splited_bucket.pop_front().unwrap();
-            (radix, flag) = parse_radix_flag(&ra)?;
+            let pair = parse_radix_flag(&ra)?;
+            (radix, flag) = (pair.0.map(|x| x as u8), pair.1)
         } else if splited_bucket.len() == 5 {
-            radix = parse_usize_helper(splited_bucket.pop_front().unwrap())?;
+            radix = parse_u8_helper(splited_bucket.pop_front().unwrap())?;
             mincol = parse_usize_helper(splited_bucket.pop_front().unwrap())?;
             padchar = parse_char_helper(splited_bucket.pop_front().unwrap())?;
             commachar = parse_char_helper(splited_bucket.pop_front().unwrap())?;

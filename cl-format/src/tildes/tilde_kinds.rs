@@ -94,7 +94,7 @@ pub enum TildeKind {
     /// Tilde R: Radix, [doc](http://www.lispworks.com/documentation/lw50/CLHS/Body/22_cba.htm)
     Radix(
         (
-            Option<usize>,     // radix
+            Option<u8>,        // radix
             Option<usize>,     // mincol
             Option<char>,      // padchar
             Option<char>,      // commachar
