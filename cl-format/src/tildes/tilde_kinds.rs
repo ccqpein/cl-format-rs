@@ -217,8 +217,12 @@ impl TildeKind {
                 )?;
                 return a.format(self, buf);
             }
-            //:= Next: Radix
-            _ => unimplemented!(),
+            TildeKind::Radix(_) => {
+                let a = arg.into_tildekind_radix().ok_or::<TildeError>(
+                    TildeError::new(ErrorKind::RevealError, "cannot reveal to Star").into(),
+                )?;
+                return a.format(self, buf);
+            } //_ => unimplemented!(),
         }
     }
 }

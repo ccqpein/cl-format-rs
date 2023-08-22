@@ -230,8 +230,3 @@ This is the table of which directives have been implemented:
 | `~d`                      | i32, i64, u32, u64, usize                               |
 | `~C`                      | char                                                    |
 | `~[~]` (normal condition) | bool, usize                                             |
-
-
-## TODO ##
-
-+ [ ] doc

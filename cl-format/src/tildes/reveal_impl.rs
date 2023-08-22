@@ -1,6 +1,6 @@
 use radix_fmt::{radix, Radix};
 use std::fmt::Write;
-use std::iter::successors;
+use std::iter::{self, successors};
 
 use super::*;
 
@@ -544,11 +544,69 @@ fn format_ordinal_num(num: usize, div: usize, order: &str, buf: &mut String) {
     }
 }
 
+fn format_helper(
+    buf: &mut String,
+    orginal: String,
+    mincol: &Option<usize>,
+    padchar: &Option<char>,
+    commachar: &Option<char>,
+    comma_interval: &Option<usize>,
+    flag: &Option<RadixFlag>,
+) -> Result<(), TildeError> {
+    let mut inner_buf = String::with_capacity(orginal.len());
+    if let Some(RadixFlag::Colon) = flag {
+        match comma_interval {
+            Some(n) => {
+                let commachar = match commachar {
+                    Some(c) => *c,
+                    None => ',',
+                };
+
+                if orginal.len() > *n {
+                    let mut edge = orginal.len() % n;
+                    if edge == 0 {
+                        edge = *n;
+                    };
+                    inner_buf.push_str(&orginal[0..edge]);
+                    loop {
+                        if edge >= orginal.len() {
+                            break;
+                        }
+                        inner_buf.push(commachar);
+                        inner_buf.push_str(&orginal[edge..edge + n]);
+                        edge += n;
+                    }
+                } else {
+                    inner_buf.push_str(&orginal);
+                }
+            }
+            None => (),
+        }
+    } else {
+        inner_buf = orginal
+    }
+
+    match mincol {
+        Some(n) => {
+            if *n > inner_buf.len() {
+                buf.push_str(
+                    &iter::repeat(padchar.unwrap_or(' '))
+                        .take(*n - inner_buf.len())
+                        .collect::<String>(),
+                );
+                buf.push_str(&inner_buf);
+            }
+        }
+        None => buf.push_str(&inner_buf),
+    }
+
+    Ok(())
+}
+
 impl TildeKindRadix for i32 {
     fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         match tkind {
             TildeKind::Radix((ra, mincol, padchar, commachar, comma_interval, flag)) => {
-                //:= TODO
                 match (ra, mincol, padchar, commachar, comma_interval, flag) {
                     (ra, None, None, None, None, None) => {
                         if ra.is_none() {
@@ -561,9 +619,15 @@ impl TildeKindRadix for i32 {
                             }
                         } else {
                             // ~xR
-                            write!(buf, "{}", Radix::new(*self, ra.unwrap())).map_err(|e| {
-                                TildeError::new(ErrorKind::FormatError, e.to_string())
-                            })?
+                            if *self < 0 {
+                                write!(buf, "-{}", Radix::new(-*self, ra.unwrap())).map_err(
+                                    |e| TildeError::new(ErrorKind::FormatError, e.to_string()),
+                                )?
+                            } else {
+                                write!(buf, "{}", Radix::new(*self, ra.unwrap())).map_err(|e| {
+                                    TildeError::new(ErrorKind::FormatError, e.to_string())
+                                })?
+                            }
                         }
                     }
                     (ra, None, None, None, None, Some(RadixFlag::Colon)) => {
@@ -576,10 +640,19 @@ impl TildeKindRadix for i32 {
                                 into_ordinal_english(self.abs() as usize, buf)
                             }
                         } else {
-                            // ~2:R
-                            //:= next
+                            // ~x:R
+                            // ~x:R == ~x,,,',,3:R
+                            if *self < 0 {
+                                buf.push('-');
+                                let s = Radix::new(-*self, ra.unwrap()).to_string();
+                                format_helper(buf, s, mincol, padchar, &Some(','), &Some(3), flag)?;
+                            } else {
+                                let s = Radix::new(-*self, ra.unwrap()).to_string();
+                                format_helper(buf, s, mincol, padchar, &Some(','), &Some(3), flag)?;
+                            }
                         }
                     }
+
                     (None, None, None, None, None, Some(RadixFlag::At)) => {
                         // ~@R
                         if *self <= 0 {
@@ -599,7 +672,32 @@ impl TildeKindRadix for i32 {
                         ));
                     }
 
-                    _ => unimplemented!(),
+                    (ra, _, _, _, _, _) => {
+                        if *self < 0 {
+                            buf.push('-');
+                            let s = Radix::new(-*self, ra.unwrap()).to_string();
+                            format_helper(
+                                buf,
+                                s,
+                                mincol,
+                                padchar,
+                                commachar,
+                                comma_interval,
+                                flag,
+                            )?;
+                        } else {
+                            let s = Radix::new(-*self, ra.unwrap()).to_string();
+                            format_helper(
+                                buf,
+                                s,
+                                mincol,
+                                padchar,
+                                commachar,
+                                comma_interval,
+                                flag,
+                            )?;
+                        }
+                    }
                 }
             }
             _ => {
@@ -611,6 +709,8 @@ impl TildeKindRadix for i32 {
         Ok(())
     }
 }
+
+//:= Next
 
 impl TildeKindRadix for i64 {
     fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
@@ -700,5 +800,90 @@ mod tests {
         let mut buf = String::new();
         assert!(write!(buf, "{}", Radix::new(17, 3)).is_ok());
         assert_eq!(buf, String::from("122"));
+
+        let mut buf = String::new();
+        assert!(write!(buf, "{}", Radix::new(345, 2)).is_ok());
+        assert_eq!(buf, String::from("101011001"));
+    }
+
+    #[test]
+    fn test_format_helper() {
+        let mut buf = String::new();
+        assert!(format_helper(
+            &mut buf,
+            Radix::new(345, 2).to_string(),
+            &None,
+            &None,
+            &Some(','),
+            &Some(3),
+            &Some(RadixFlag::Colon),
+        )
+        .is_ok());
+        assert_eq!(buf, String::from("101,011,001"));
+
+        let mut buf = String::new();
+        assert!(format_helper(
+            &mut buf,
+            Radix::new(345, 2).to_string(),
+            &None,
+            &None,
+            &Some(','),
+            &Some(3),
+            &None,
+        )
+        .is_ok());
+        assert_eq!(buf, String::from("101011001"));
+
+        let mut buf = String::new();
+        assert!(format_helper(
+            &mut buf,
+            Radix::new(345, 3).to_string(),
+            &None,
+            &None,
+            &Some(','),
+            &Some(3),
+            &Some(RadixFlag::Colon),
+        )
+        .is_ok());
+        assert_eq!(buf, String::from("110,210"));
+
+        let mut buf = String::new();
+        assert!(format_helper(
+            &mut buf,
+            Radix::new(17, 3).to_string(),
+            &None,
+            &None,
+            &Some(','),
+            &Some(2),
+            &Some(RadixFlag::Colon),
+        )
+        .is_ok());
+        assert_eq!(buf, String::from("1,22"));
+
+        let mut buf = String::new();
+        assert!(format_helper(
+            &mut buf,
+            Radix::new(17, 10).to_string(),
+            &None,
+            &None,
+            &Some(','),
+            &Some(2),
+            &Some(RadixFlag::Colon),
+        )
+        .is_ok());
+        assert_eq!(buf, String::from("17"));
+
+        let mut buf = String::new();
+        assert!(format_helper(
+            &mut buf,
+            Radix::new(17, 10).to_string(),
+            &Some(5),
+            &Some('a'),
+            &Some(','),
+            &Some(2),
+            &Some(RadixFlag::Colon),
+        )
+        .is_ok());
+        assert_eq!(buf, String::from("aaa17"));
     }
 }
