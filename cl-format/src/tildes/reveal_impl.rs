@@ -601,6 +601,8 @@ fn format_helper(
                         .collect::<String>(),
                 );
                 buf.push_str(&inner_buf);
+            } else {
+                buf.push_str(&inner_buf);
             }
         }
         None => buf.push_str(&inner_buf),
@@ -618,7 +620,7 @@ impl TildeKindRadix for isize {
                         if ra.is_none() {
                             // ~R
                             if *self < 0 {
-                                buf.push_str("negative");
+                                buf.push_str("negative ");
                                 into_english(self.abs() as usize, buf)
                             } else {
                                 into_english(self.abs() as usize, buf)
@@ -640,7 +642,7 @@ impl TildeKindRadix for isize {
                         if ra.is_none() {
                             // ~:R
                             if *self < 0 {
-                                buf.push_str("negative");
+                                buf.push_str("negative ");
                                 into_ordinal_english(self.abs() as usize, buf)
                             } else {
                                 into_ordinal_english(self.abs() as usize, buf)

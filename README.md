@@ -144,6 +144,37 @@ let args = Args::new(vec![&list]);
 assert_eq!(cs.reveal(args).unwrap(), "1, 2, 3, and 4".to_string());
 ```
 
+Let's try a mixed example: 
+
+```rust
+
+let my_team = String::from("STeam");
+let my_stars = vec![
+    String::from("Adam Lambert"),
+    String::from("Queen"),
+    String::from("snoop dogg"),
+];
+
+let stars = my_stars
+    .iter()
+    .map(|s| tilde!(s))
+    .collect::<Vec<&dyn TildeAble>>();
+	
+assert_eq!(
+    String::from("my favorite team \"STeam\" will win the superbowl LVIII. And Adam Lambert, Queen, and snoop dogg will in half time show. And the scores should be 38:35"),
+    cl_format!(
+        "my favorite team ~S will win the superbowl ~@R. And ~{~#[~;~a~;~a and ~a~:;~@{~a~#[~;, and ~:;, ~]~}~]~} will in half time show. And the scores should be ~d:~d",
+        &my_team,
+        &58,
+        &stars,
+        &38,
+        &35
+    )
+    .unwrap()
+);
+
+```
+
 ### Implement for custom type ###
 
 So far, we have only shown the basic types. It would be better if we could make our type be revealed as well.

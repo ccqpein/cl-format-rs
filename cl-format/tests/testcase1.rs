@@ -61,14 +61,14 @@ impl TildeAble for MyStruct {
 }
 
 impl TildeKindVa for MyStruct {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, _tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         buf.push_str(&format!("a: {}, b: {}", self.a, self.b));
         Ok(())
     }
 }
 
 impl TildeKindDigit for MyStruct {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, _tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         buf.push_str(&format!("{}", self.a));
         Ok(())
     }
