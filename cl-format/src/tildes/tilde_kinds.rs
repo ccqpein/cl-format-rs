@@ -90,7 +90,7 @@ pub enum TildeKind {
     /// ~$ ~5$ ~f
     Float(Option<String>),
 
-    #[implTo(i32, i64, u32, u64, usize)]
+    #[implTo(i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, usize, isize)]
     /// Tilde R: Radix, [doc](http://www.lispworks.com/documentation/lw50/CLHS/Body/22_cba.htm)
     Radix(
         (
@@ -103,11 +103,14 @@ pub enum TildeKind {
         ),
     ),
 
-    #[implTo(i32, i64, u32, u64, usize)]
+    #[implTo(i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, usize, isize)]
     /// ~d ~:d ~:@d
     Digit(Option<String>),
 
-    #[implTo(f32, f64, char, i32, i64, usize, bool, u32, u64, String, TildeNil)]
+    #[implTo(
+        f32, f64, char, i8, i16, i32, i64, i128, isize, bool, u8, u16, u32, u64, u128, usize,
+        String, TildeNil
+    )]
     /// ~a
     Va,
 
@@ -141,6 +144,8 @@ pub enum TildeKind {
 
 impl TildeKind {
     pub fn match_reveal(&self, arg: &dyn TildeAble, buf: &mut String) -> Result<(), TildeError> {
+        //dbg!(arg);
+        //dbg!(self);
         match self {
             TildeKind::Char(_) => {
                 let a = arg.into_tildekind_char().ok_or::<TildeError>(
@@ -164,6 +169,7 @@ impl TildeKind {
                 return a.format(self, buf);
             }
             TildeKind::Va => {
+                //dbg!(&arg);
                 let a = arg.into_tildekind_va().ok_or::<TildeError>(
                     TildeError::new(ErrorKind::RevealError, "cannot reveal to Va").into(),
                 )?;
@@ -219,7 +225,7 @@ impl TildeKind {
             }
             TildeKind::Radix(_) => {
                 let a = arg.into_tildekind_radix().ok_or::<TildeError>(
-                    TildeError::new(ErrorKind::RevealError, "cannot reveal to Star").into(),
+                    TildeError::new(ErrorKind::RevealError, "cannot reveal to Radix").into(),
                 )?;
                 return a.format(self, buf);
             } //_ => unimplemented!(),

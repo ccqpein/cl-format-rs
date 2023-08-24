@@ -67,6 +67,13 @@ impl<'a> TildeAble for Args<'a> {
     fn into_tildekind_tildes(&self) -> Option<&dyn TildeKindTildes> {
         None
     }
+
+    fn into_tildekind_radix(&self) -> Option<&dyn TildeKindRadix> {
+        match self.pop() {
+            Some(a) => a.into_tildekind_radix(),
+            None => None,
+        }
+    }
 }
 
 /// impl mamually

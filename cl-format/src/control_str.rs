@@ -56,6 +56,7 @@ impl<'a> ControlStr<'a> {
     }
 
     pub fn reveal<'s>(&self, args: Args<'s>) -> Result<String, TildeError> {
+        //dbg!(self);
         let mut start = 0;
         let end = self.inner.len();
 
@@ -154,7 +155,6 @@ mod tests {
         );
 
         let c = ControlStr::scan(Cursor::new("~a, ~a, ~a, ~{~a~^,~}"));
-        dbg!(c);
 
         Ok(())
     }
@@ -578,7 +578,6 @@ mod tests {
     fn test_reveal_standard() -> Result<(), Box<dyn std::error::Error>> {
         let case = "~d ~s";
         let cs = ControlStr::new(case)?;
-        dbg!(&cs);
 
         let s = String::from("hello");
         let arg = Args::from([&1_i64 as &dyn TildeAble, &s]);
@@ -587,6 +586,35 @@ mod tests {
             vec![Some("1".to_string()), Some("\"hello\"".to_string())],
             parse_test_result(reveal_tildes(&cs, &(arg.into())))?
         );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_reveal_radix() -> Result<(), Box<dyn std::error::Error>> {
+        let cs = ControlStr::new("~R")?;
+        assert_eq!(
+            "one".to_string(),
+            cs.reveal([&1_i32 as &dyn TildeAble].into())?
+        );
+
+        assert_eq!(
+            "sixty-four".to_string(),
+            cs.reveal([&64_i128 as &dyn TildeAble].into())?
+        );
+
+        let cs = ControlStr::new("~:R")?;
+        assert_eq!(
+            "first".to_string(),
+            cs.reveal([&1_i32 as &dyn TildeAble].into())?
+        );
+
+        assert_eq!(
+            "sixty-fourth".to_string(),
+            cs.reveal([&64_isize as &dyn TildeAble].into())?
+        );
+
+        //:= Next: more tests here
         Ok(())
     }
 

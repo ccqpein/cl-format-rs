@@ -186,14 +186,16 @@ By now, your IDE should give you some errors, letting you implement `TildeKindVa
 
 ```rust
 impl TildeKindVa for MyStruct {
-    fn format(&self, tkind: &TildeKind) -> Result<Option<String>, Box<dyn std::error::Error>> {
-        Ok(Some(format!("a: {}, b: {}", self.a, self.b)))
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+        buf.push_str(&format!("a: {}, b: {}", self.a, self.b));
+        Ok(())
     }
 }
 
 impl TildeKindDigit for MyStruct {
-    fn format(&self, tkind: &TildeKind) -> Result<Option<String>, Box<dyn std::error::Error>> {
-        Ok(Some(format!("{}", self.a)))
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+        buf.push_str(&format!("{}", self.a));
+        Ok(())
     }
 }
 ```
@@ -223,10 +225,11 @@ assert_eq!(
 
 This is the table of which directives have been implemented:
 
-| tilde                     | rust type                                               |
-|:-------------------------:|:-------------------------------------------------------:|
-| `~a`                      | f32, f64, char, i32, i64, usize, bool, u32, u64, String |
-| `~s`                      | f32, f64, char, i32, i64, usize, bool, u32, u64, String |
-| `~d`                      | i32, i64, u32, u64, usize                               |
-| `~C`                      | char                                                    |
-| `~[~]` (normal condition) | bool, usize                                             |
+| tilde                     | rust type                                                                                    |
+|:-------------------------:|:--------------------------------------------------------------------------------------------:|
+| `~a`                      | f32, f64, char, i8, i16, i32, i64, i128, isize, bool, u8, u16, u32, u64, u128, usize, String |
+| `~s`                      | f32, f64, char, i32, i64, usize, bool, u32, u64, String                                      |
+| `~d`                      | i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, usize, isize                               |
+| `~C`                      | char                                                                                         |
+| `~[~]` (normal condition) | bool, usize                                                                                  |
+| `~R`                      | i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, usize, isize                               |

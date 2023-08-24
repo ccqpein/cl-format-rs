@@ -1,4 +1,4 @@
-use radix_fmt::{radix, Radix};
+use radix_fmt::Radix;
 use std::fmt::Write;
 use std::iter::{self, successors};
 
@@ -7,10 +7,16 @@ use super::*;
 //========================================
 // TildeKindDigit
 //========================================
-multi_tilde_impl!(TildeKindDigit, [i32, i64, u32, u64, usize], self, buf, {
-    buf.push_str(self.to_string().as_str());
-    Ok(())
-});
+multi_tilde_impl!(
+    TildeKindDigit,
+    [i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, usize, isize],
+    self,
+    buf,
+    {
+        buf.push_str(self.to_string().as_str());
+        Ok(())
+    }
+);
 
 //========================================
 // TildeKindChar
@@ -37,7 +43,7 @@ impl TildeKindChar for char {
 //========================================
 multi_tilde_impl!(
     TildeKindVa,
-    [f32, f64, char, i32, i64, usize, u32, u64, String],
+    [f32, f64, char, i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize, String],
     self,
     buf,
     {
@@ -318,7 +324,7 @@ impl TildeKindStandard for char {
 
 multi_tilde_impl!(
     TildeKindStandard,
-    [f32, f64, i32, i64, usize, bool, u32, u64],
+    [f32, f64, bool, i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, usize, isize],
     self,
     buf,
     {
@@ -603,7 +609,7 @@ fn format_helper(
     Ok(())
 }
 
-impl TildeKindRadix for i32 {
+impl TildeKindRadix for isize {
     fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         match tkind {
             TildeKind::Radix((ra, mincol, padchar, commachar, comma_interval, flag)) => {
@@ -647,7 +653,7 @@ impl TildeKindRadix for i32 {
                                 let s = Radix::new(-*self, ra.unwrap()).to_string();
                                 format_helper(buf, s, mincol, padchar, &Some(','), &Some(3), flag)?;
                             } else {
-                                let s = Radix::new(-*self, ra.unwrap()).to_string();
+                                let s = Radix::new(*self, ra.unwrap()).to_string();
                                 format_helper(buf, s, mincol, padchar, &Some(','), &Some(3), flag)?;
                             }
                         }
@@ -686,7 +692,7 @@ impl TildeKindRadix for i32 {
                                 flag,
                             )?;
                         } else {
-                            let s = Radix::new(-*self, ra.unwrap()).to_string();
+                            let s = Radix::new(*self, ra.unwrap()).to_string();
                             format_helper(
                                 buf,
                                 s,
@@ -710,29 +716,117 @@ impl TildeKindRadix for i32 {
     }
 }
 
-//:= Next
+impl TildeKindRadix for i8 {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+        TildeKindRadix::format(&Into::<isize>::into(*self), tkind, buf)
+    }
+}
+
+impl TildeKindRadix for i16 {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+        TildeKindRadix::format(&Into::<isize>::into(*self), tkind, buf)
+    }
+}
+
+impl TildeKindRadix for i32 {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+        TildeKindRadix::format(&(*self as isize), tkind, buf)
+    }
+}
 
 impl TildeKindRadix for i64 {
     fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
-        Err(TildeError::new(ErrorKind::EmptyImplenmentError, "haven't implenmented yet").into())
+        TildeKindRadix::format(&(*self as isize), tkind, buf)
     }
 }
 
-impl TildeKindRadix for u32 {
+impl TildeKindRadix for i128 {
     fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
-        Err(TildeError::new(ErrorKind::EmptyImplenmentError, "haven't implenmented yet").into())
-    }
-}
-
-impl TildeKindRadix for u64 {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
-        Err(TildeError::new(ErrorKind::EmptyImplenmentError, "haven't implenmented yet").into())
+        TildeKindRadix::format(&(*self as isize), tkind, buf)
     }
 }
 
 impl TildeKindRadix for usize {
     fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
-        Err(TildeError::new(ErrorKind::EmptyImplenmentError, "haven't implenmented yet").into())
+        match tkind {
+            TildeKind::Radix((ra, mincol, padchar, commachar, comma_interval, flag)) => {
+                match (ra, mincol, padchar, commachar, comma_interval, flag) {
+                    (ra, None, None, None, None, None) => {
+                        if ra.is_none() {
+                            // ~R
+                            into_english(*self, buf)
+                        } else {
+                            // ~xR
+                            write!(buf, "{}", Radix::new(*self, ra.unwrap())).map_err(|e| {
+                                TildeError::new(ErrorKind::FormatError, e.to_string())
+                            })?
+                        }
+                    }
+                    (ra, None, None, None, None, Some(RadixFlag::Colon)) => {
+                        if ra.is_none() {
+                            // ~:R
+                            into_ordinal_english(*self, buf)
+                        } else {
+                            // ~x:R
+                            // ~x:R == ~x,,,',,3:R
+                            let s = Radix::new(*self, ra.unwrap()).to_string();
+                            format_helper(buf, s, mincol, padchar, &Some(','), &Some(3), flag)?;
+                        }
+                    }
+
+                    (None, None, None, None, None, Some(RadixFlag::At)) => {
+                        // ~@R
+                        buf.push_str(&into_roman(*self as usize)?);
+                    }
+
+                    (None, None, None, None, None, Some(RadixFlag::AtColon)) => {
+                        return Err(TildeError::new(
+                            ErrorKind::FormatError,
+                            "old Roman numeral haven't supported yet",
+                        ));
+                    }
+
+                    (ra, _, _, _, _, _) => {
+                        let s = Radix::new(*self, ra.unwrap()).to_string();
+                        format_helper(buf, s, mincol, padchar, commachar, comma_interval, flag)?;
+                    }
+                }
+            }
+            _ => {
+                return Err(
+                    TildeError::new(ErrorKind::RevealError, "cannot format to Radix").into(),
+                )
+            }
+        }
+        Ok(())
+    }
+}
+
+impl TildeKindRadix for u8 {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+        TildeKindRadix::format(&(*self as usize), tkind, buf)
+    }
+}
+impl TildeKindRadix for u16 {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+        TildeKindRadix::format(&(*self as usize), tkind, buf)
+    }
+}
+impl TildeKindRadix for u32 {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+        TildeKindRadix::format(&(*self as usize), tkind, buf)
+    }
+}
+
+impl TildeKindRadix for u64 {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+        TildeKindRadix::format(&(*self as usize), tkind, buf)
+    }
+}
+
+impl TildeKindRadix for u128 {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+        TildeKindRadix::format(&(*self as usize), tkind, buf)
     }
 }
 

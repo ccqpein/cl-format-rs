@@ -587,22 +587,25 @@ impl Tilde {
 
     fn parse_standard(c: &mut Cursor<&'_ str>) -> Result<Self, TildeError> {
         let mut buf = vec![];
-
-        for t in [b's', b'S'] {
-            c.read_until(t, &mut buf)
-                .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
-            match buf.last() {
-                Some(b) if *b == t => return Ok(Tilde::new(buf.len(), TildeKind::Standard)),
-                _ => (),
+        let mut one_byte = [0; 1];
+        loop {
+            if c.read(&mut one_byte)
+                .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?
+                == 0
+            {
+                c.seek(SeekFrom::Current(-(buf.len() as i64)))
+                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
+                return Err(TildeError::new(
+                    ErrorKind::ParseError,
+                    "cannot find the 's' or 'S'",
+                ));
             }
-            c.seek(SeekFrom::Current(-(buf.len() as i64)))
-                .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
-            buf.clear();
+
+            match one_byte[0] {
+                b's' | b'S' => return Ok(Tilde::new(buf.len() + 1, TildeKind::Standard)),
+                _ => buf.extend_from_slice(&one_byte),
+            }
         }
-        Err(TildeError::new(
-            ErrorKind::ParseError,
-            "cannot find the 's' or 'S'",
-        ))
     }
 
     fn parse_char(c: &mut Cursor<&'_ str>) -> Result<Self, TildeError> {
@@ -1308,6 +1311,9 @@ mod tests {
         assert_eq!(Tilde::parse(&mut case)?, Tilde::new(2, TildeKind::Standard));
 
         let mut case = Cursor::new("~S");
+        assert_eq!(Tilde::parse(&mut case)?, Tilde::new(2, TildeKind::Standard));
+
+        let mut case = Cursor::new("~S superbowl");
         assert_eq!(Tilde::parse(&mut case)?, Tilde::new(2, TildeKind::Standard));
 
         Ok(())

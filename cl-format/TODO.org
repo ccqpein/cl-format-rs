@@ -9,7 +9,7 @@
 ** TODO Tilde parsers
 - [X] \~n~ [[http://www.lispworks.com/documentation/lw50/CLHS/Body/22_cae.htm][tilde]]
 - [X] char
-- [ ] [[http://www.lispworks.com/documentation/lw50/CLHS/Body/22_cba.htm][R: Radix]]
+- [X] [[http://www.lispworks.com/documentation/lw50/CLHS/Body/22_cba.htm][R: Radix]]
 - [ ] [[http://www.lispworks.com/documentation/lw50/CLHS/Body/22_cbc.htm][B: Binary]]
 - [ ] [[http://www.lispworks.com/documentation/lw50/CLHS/Body/22_cbd.htm][O: Octal]]
 - [ ] [[http://www.lispworks.com/documentation/lw50/CLHS/Body/22_cbe.htm][X: Hexadecimal]]
@@ -32,7 +32,11 @@ CLOSED: [2023-03-18 Sat 23:03]
 :END:
 after parse, the tilde need a view layer.
 
-** PROCESSING Optimize
+** DONE Optimize
+CLOSED: [2023-08-23 Wed 17:14]
+:LOGBOOK:
+- State "DONE"       from "PROCESSING" [2023-08-23 Wed 17:14]
+:END:
 
 *** DONE Change the box error to error type
 CLOSED: [2023-05-02 Tue 18:29]
@@ -40,9 +44,17 @@ CLOSED: [2023-05-02 Tue 18:29]
 - State "DONE"       from              [2023-05-02 Tue 18:29]
 :END:
 
-*** NEXT ~control_str::reveal~ need to accept borrow args
+*** DONE ~control_str::reveal~ need to accept borrow args
+CLOSED: [2023-08-23 Wed 17:13]
+:LOGBOOK:
+- State "DONE"       from "NEXT"       [2023-08-23 Wed 17:13]
+:END:
 and also need to return error directly
 good for benchmark test
 
-*** NEXT ~match_reveal~ need return Option type or not?
+*** DONE ~match_reveal~ need return Option type or not?
+CLOSED: [2023-08-23 Wed 17:13]
+:LOGBOOK:
+- State "DONE"       from "NEXT"       [2023-08-23 Wed 17:13]
+:END:
 I can just call the format? Like ~<a as TildeKindVa>::format()~?
