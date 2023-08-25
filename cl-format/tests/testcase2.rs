@@ -49,3 +49,33 @@ fn test_radix_0() {
         .unwrap()
     );
 }
+
+#[test]
+fn test_radix_1() {
+    assert_eq!(
+        cl_format!("this is binary: ~2R", &8).unwrap(),
+        "this is binary: 1000"
+    );
+
+    assert_eq!(
+        cl_format!("this is hex: ~16R", &8).unwrap(),
+        "this is hex: 8"
+    );
+
+    assert_eq!(cl_format!("~7R", &8).unwrap(), "11");
+
+    assert_eq!(
+        cl_format!("~2,19,0,,R", &3333).unwrap(),
+        "0000000110100000101"
+    );
+
+    assert_eq!(cl_format!("~2,7,0,,R", &5).unwrap(), "0000101");
+
+    // assert_eq!(
+    //     cl_format!("this is binary: ~2:R", &8).unwrap(),
+    //     cl_format!("this is binary: ~2,,,\,,3:R", &8).unwrap(),
+    // )
+
+    assert_eq!(cl_format!("~2,,, ,4:R", &20).unwrap(), "1 0100");
+    //assert_eq!(cl_format!("~2,,,a,4:R", &20).unwrap(), "1 0100");
+}
