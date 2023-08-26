@@ -73,9 +73,13 @@ fn test_radix_1() {
 
     // assert_eq!(
     //     cl_format!("this is binary: ~2:R", &8).unwrap(),
-    //     cl_format!("this is binary: ~2,,,\,,3:R", &8).unwrap(),
-    // )
+    //     cl_format!("this is binary: ~2,,,\\,,3:R", &8).unwrap(),
+    // );
 
     assert_eq!(cl_format!("~2,,, ,4:R", &20).unwrap(), "1 0100");
-    //assert_eq!(cl_format!("~2,,,a,4:R", &20).unwrap(), "1 0100");
+
+    // a is the keyword of tilde, need to escape
+    assert_eq!(cl_format!("~2,,,\\a,4:R", &20).unwrap(), "1a0100");
+
+    assert_eq!(cl_format!("~2,,,z,4:R", &20).unwrap(), "1z0100");
 }

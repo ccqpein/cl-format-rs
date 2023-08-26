@@ -62,5 +62,6 @@ I can just call the format? Like ~<a as TildeKindVa>::format()~?
 * Bugs
 
 ** NEXT char inside Radix need to escape
-like ~cl_format!("this is binary: ~2,,,\,,3:R", &8)~ need get the ','.
-and the ~cl_format!("~2,,,a,4:R", &20)~ shouldn't be the ~a in parser
+- [ ] like ~cl_format!("this is binary: ~2,,,\,,3:R", &8)~ need get the ','.
+- [X] and the ~cl_format!("~~2,,,a,4:R", &20)~ shouldn't be the ~a in parser
+  fix with the \\ escape char in control string

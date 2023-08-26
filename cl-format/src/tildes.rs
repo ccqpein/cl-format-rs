@@ -61,6 +61,7 @@ impl Tilde {
 
         let mut bucket = vec![b'~'];
         let mut buf_offset = 1;
+        let mut escape = false;
 
         loop {
             if c.read(&mut buf)
@@ -74,66 +75,73 @@ impl Tilde {
             buf_offset += 1;
             bucket.extend_from_slice(&buf);
             //dbg!(&bucket);
-
-            match &bucket[..] {
-                [.., b'a'] | [.., b'A'] => {
-                    c.seek(SeekFrom::Current(-buf_offset))
-                        .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
-                    return Ok(Box::new(Self::parse_value));
+            if !escape {
+                match &bucket[..] {
+                    [.., b'\\'] => {
+                        // escape the next one
+                        escape = true;
+                        continue;
+                    }
+                    [.., b'a'] | [.., b'A'] => {
+                        c.seek(SeekFrom::Current(-buf_offset))
+                            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
+                        return Ok(Box::new(Self::parse_value));
+                    }
+                    [.., b'@', b'{'] | [.., b'{'] => {
+                        c.seek(SeekFrom::Current(-buf_offset))
+                            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
+                        return Ok(Box::new(Self::parse_loop));
+                    }
+                    [.., _, b'$'] | [.., b'$'] | [.., b'f' | b'F'] => {
+                        c.seek(SeekFrom::Current(-buf_offset))
+                            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
+                        return Ok(Box::new(Self::parse_float));
+                    }
+                    [.., b'd'] | [.., b'D'] => {
+                        c.seek(SeekFrom::Current(-buf_offset))
+                            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
+                        return Ok(Box::new(Self::parse_digit));
+                    }
+                    [.., b'#' | b':' | b'@', b'['] | [.., b'['] => {
+                        c.seek(SeekFrom::Current(-buf_offset))
+                            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
+                        return Ok(Box::new(Self::parse_cond));
+                    }
+                    [.., b'^'] => {
+                        c.seek(SeekFrom::Current(-buf_offset))
+                            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
+                        return Ok(Box::new(Self::parse_loop_end));
+                    }
+                    [.., b':', b'*'] | [.., b'*'] => {
+                        c.seek(SeekFrom::Current(-buf_offset))
+                            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
+                        return Ok(Box::new(Self::parse_star));
+                    }
+                    [.., _, b'~'] => {
+                        //:= can only parse the one digit number
+                        c.seek(SeekFrom::Current(-buf_offset))
+                            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
+                        return Ok(Box::new(Self::parse_tildes));
+                    }
+                    [.., b'S'] | [.., b's'] => {
+                        c.seek(SeekFrom::Current(-buf_offset))
+                            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
+                        return Ok(Box::new(Self::parse_standard));
+                    }
+                    [.., b'@', b'c' | b'C'] | [.., b'C' | b'c'] => {
+                        c.seek(SeekFrom::Current(-buf_offset))
+                            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
+                        return Ok(Box::new(Self::parse_char));
+                    }
+                    [.., b'R' | b'r'] => {
+                        c.seek(SeekFrom::Current(-buf_offset))
+                            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
+                        return Ok(Box::new(Self::parse_radix));
+                    }
+                    _ => {}
                 }
-                [.., b'@', b'{'] | [.., b'{'] => {
-                    c.seek(SeekFrom::Current(-buf_offset))
-                        .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
-                    return Ok(Box::new(Self::parse_loop));
-                }
-                [.., _, b'$'] | [.., b'$'] | [.., b'f' | b'F'] => {
-                    c.seek(SeekFrom::Current(-buf_offset))
-                        .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
-                    return Ok(Box::new(Self::parse_float));
-                }
-                [.., b'd'] | [.., b'D'] => {
-                    c.seek(SeekFrom::Current(-buf_offset))
-                        .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
-                    return Ok(Box::new(Self::parse_digit));
-                }
-                [.., b'#' | b':' | b'@', b'['] | [.., b'['] => {
-                    c.seek(SeekFrom::Current(-buf_offset))
-                        .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
-                    return Ok(Box::new(Self::parse_cond));
-                }
-                [.., b'^'] => {
-                    c.seek(SeekFrom::Current(-buf_offset))
-                        .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
-                    return Ok(Box::new(Self::parse_loop_end));
-                }
-                [.., b':', b'*'] | [.., b'*'] => {
-                    c.seek(SeekFrom::Current(-buf_offset))
-                        .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
-                    return Ok(Box::new(Self::parse_star));
-                }
-                [.., _, b'~'] => {
-                    //:= can only parse the one digit number
-                    c.seek(SeekFrom::Current(-buf_offset))
-                        .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
-                    return Ok(Box::new(Self::parse_tildes));
-                }
-                [.., b'S'] | [.., b's'] => {
-                    c.seek(SeekFrom::Current(-buf_offset))
-                        .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
-                    return Ok(Box::new(Self::parse_standard));
-                }
-                [.., b'@', b'c' | b'C'] | [.., b'C' | b'c'] => {
-                    c.seek(SeekFrom::Current(-buf_offset))
-                        .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
-                    return Ok(Box::new(Self::parse_char));
-                }
-                [.., b'R' | b'r'] => {
-                    c.seek(SeekFrom::Current(-buf_offset))
-                        .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
-                    return Ok(Box::new(Self::parse_radix));
-                }
-                _ => {}
             }
+            escape = false;
         }
     }
 
@@ -690,7 +698,7 @@ impl Tilde {
             if a.len() == 0 {
                 Ok(None)
             } else {
-                Ok(a.chars().next())
+                Ok(a.chars().last())
             }
         };
 
@@ -1447,6 +1455,22 @@ mod tests {
             Tilde::new(
                 4,
                 TildeKind::Radix((None, None, None, None, None, Some(RadixFlag::AtColon)))
+            )
+        );
+
+        let mut case = Cursor::new(r#"~2,,,\a,4:R"#);
+        assert_eq!(
+            Tilde::parse(&mut case)?,
+            Tilde::new(
+                11,
+                TildeKind::Radix((
+                    Some(2),
+                    None,
+                    None,
+                    Some('a'),
+                    Some(4),
+                    Some(RadixFlag::Colon)
+                ))
             )
         );
 
