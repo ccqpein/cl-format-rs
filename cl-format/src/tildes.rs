@@ -16,7 +16,6 @@ mod args;
 pub use args::*;
 
 mod tilde_able_impl;
-pub use tilde_able_impl::*;
 
 /// The tilde struct
 #[derive(Debug, PartialEq, Clone)]
