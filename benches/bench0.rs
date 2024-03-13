@@ -1,7 +1,4 @@
-//:= DEL: #![feature(test)]
-//:= DEL: extern crate test;
 use cl_format::*;
-//:= DEL: use test::Bencher;
 
 use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
 //use pprof::criterion::{Output, PProfProfiler};
@@ -16,7 +13,7 @@ fn cl_format_plain_single_a(v: i32) -> String {
 
 fn bench_cl_format_reveal_single_a(c: &mut Criterion) {
     let list0 = vec![tilde!(&1)];
-    let control_str = ControlStr::from("~a").unwrap();
+    let control_str = ControlStr::new("~a").unwrap();
     let args = Args::new(list0);
     c.bench_function("bench_cl_format_reveal_single_a", |b| {
         b.iter(|| cl_format_reveal_single_a(&control_str, args.clone()))

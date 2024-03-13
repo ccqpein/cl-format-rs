@@ -1,11 +1,15 @@
 use crate::tildes::*;
-use std::convert::{TryFrom, TryInto};
 use std::fmt::Debug;
 use std::io::{BufRead, Cursor, Seek, SeekFrom};
 
-/// the control string should including:
-/// 1. the whole string
-/// 2. the parsed tree
+#[doc = r"The control string is the type contains control string for format.
+
+It includes:
+
+1. the whole string
+2. the parsed tree
+
+Use `new(&str)` to create a ControlStr and reuse this control string instance to `reveal(Args)` to get the result string"]
 #[derive(Debug, Clone, PartialEq)]
 pub struct ControlStr<'a> {
     inner: &'a str,
@@ -13,18 +17,32 @@ pub struct ControlStr<'a> {
 }
 
 impl<'a> ControlStr<'a> {
-    fn new(s: &'a str) -> Result<Self, Box<dyn std::error::Error + 'a>> {
+    #[doc = r"Make a new ContrilStr from &str"]
+    pub fn new(s: &'a str) -> Result<Self, Box<dyn std::error::Error + 'a>> {
         let cc = Cursor::new(s);
         let tildes = Self::scan(cc)?;
 
         Ok(Self { inner: s, tildes })
     }
 
-    pub fn from<T>(x: T) -> Result<Self, <T as TryInto<ControlStr<'a>>>::Error>
-    where
-        T: TryInto<ControlStr<'a>> + 'a + ?Sized,
-    {
-        x.try_into()
+    #[allow(dead_code)]
+    #[doc = "Reveal arguments to string"]
+    pub fn reveal<'s>(&self, args: Args<'s>) -> Result<String, TildeError> {
+        //dbg!(self);
+        let mut start = 0;
+        let end = self.inner.len();
+
+        let mut result = String::with_capacity(args.left_count());
+
+        for (r, t) in &self.tildes {
+            result.push_str(&self.inner[start..r.0]);
+            t.reveal(&args, &mut result)?;
+            start = r.1;
+        }
+
+        result += &self.inner[start..end];
+
+        Ok(result)
     }
 
     fn scan(
@@ -53,24 +71,6 @@ impl<'a> ControlStr<'a> {
             has_read_len = end_index;
             buf.clear();
         }
-    }
-
-    pub fn reveal<'s>(&self, args: Args<'s>) -> Result<String, TildeError> {
-        //dbg!(self);
-        let mut start = 0;
-        let end = self.inner.len();
-
-        let mut result = String::with_capacity(args.left_count());
-
-        for (r, t) in &self.tildes {
-            result.push_str(&self.inner[start..r.0]);
-            t.reveal(&args, &mut result)?;
-            start = r.1;
-        }
-
-        result += &self.inner[start..end];
-
-        Ok(result)
     }
 }
 
@@ -646,7 +646,7 @@ mod tests {
     #[test]
     fn test_reveal() -> Result<(), Box<dyn std::error::Error>> {
         let case = "~a, ~a, ~a";
-        let cs = ControlStr::from(case)?;
+        let cs = ControlStr::new(case)?;
         assert_eq!(
             "1, 2, 3".to_string(),
             cs.reveal([&1_i32 as &dyn TildeAble, &2, &3].into())?

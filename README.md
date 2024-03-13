@@ -2,7 +2,7 @@
 
 `cl-format` s the Rust implementation of the Common Lisp [format](http://www.lispworks.com/documentation/lw50/CLHS/Body/f_format.htm) function.
 
-TL;DR: Use several directives like ~a ~{~} and flexible condition and loop control strings to format the string from arguments.
+TL;DR: Use several directives like `~a ~{~}` and flexible condition and loop control strings to format the string from arguments.
 
 Here are several pages for you to have a general idea if you are not familiar with Common Lisp:
 
@@ -23,7 +23,7 @@ Here are several pages for you to have a general idea if you are not familiar wi
 
 There are two ways to use this library. You can use the `cl_format!` macro, or generate the control string and format your arguments by yourself for more flexibility.
 
-First, add `cl-format = "0.1"` in your `Cargo.toml`.
+First, add `cl-format = "0.2"` in your `Cargo.toml`.
  
 ### Use macro ###
 

@@ -17,7 +17,7 @@ pub use args::*;
 
 mod tilde_able_impl;
 
-/// The tilde struct
+#[doc = r"The tilde struct"]
 #[derive(Debug, PartialEq, Clone)]
 pub struct Tilde {
     len: usize,

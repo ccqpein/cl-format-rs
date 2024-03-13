@@ -1,11 +1,12 @@
 use super::*;
 
-/// The args for control string to use. Can pop and go back for some
-/// condition reveal.
+/// The args for control string to use.
 #[derive(Debug, Clone)]
 pub struct Args<'a> {
     len: usize,
     inner: Vec<&'a dyn TildeAble>,
+
+    /// need mutate borrow in immutate Args
     ind: RefCell<usize>,
 }
 
