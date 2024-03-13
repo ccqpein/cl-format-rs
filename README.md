@@ -1,5 +1,7 @@
 # cl-format #
 
+[![Crates.io](https://img.shields.io/crates/v/cl-format.svg)](https://crates.io/crates/cl-format)
+
 `cl-format` s the Rust implementation of the Common Lisp [format](http://www.lispworks.com/documentation/lw50/CLHS/Body/f_format.htm) function.
 
 TL;DR: Use several directives like `~a ~{~}` and flexible condition and loop control strings to format the string from arguments.
