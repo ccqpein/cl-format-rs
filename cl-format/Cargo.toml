@@ -1,6 +1,6 @@
 [package]
 name = "cl-format"
-version = "0.2.3"
+version = "0.2.4"
 authors = ["ccQpein"]
 edition = "2021"
 description = "Use Common Lisp format in Rust"
