@@ -301,7 +301,7 @@ macro_rules! multi_tilde_impl {
 #[macro_export]
 macro_rules! tilde {
     ($arg:expr) => {
-        $arg as &dyn crate::TildeAble
+        $arg as &dyn cl_format::TildeAble
     };
 }
 
@@ -331,15 +331,15 @@ assert_eq!(String::from("1, 2, 3, and 4"), a.unwrap());
 macro_rules! cl_format {
 	($control_str:expr) =>	{
 		{
-			let c = crate::ControlStr::new($control_str).expect("making control string has issue");
-			let a = crate::Args::new(vec![]);
+			let c = cl_format::ControlStr::new($control_str).expect("making control string has issue");
+			let a = cl_format::Args::new(vec![]);
 			c.reveal(a)
 		}
 	};
     ($control_str:expr, $($ele:expr),*) =>	{
 		{
-			let c = crate::ControlStr::new($control_str).expect("making control string has issue");
-			let a = Into::<crate::Args<'_>>::into([$(tilde!($ele)),*]);
+			let c = cl_format::ControlStr::new($control_str).expect("making control string has issue");
+			let a = Into::<Args<'_>>::into([$(tilde!($ele)),*]);
 			c.reveal(a)
 		}
 	}

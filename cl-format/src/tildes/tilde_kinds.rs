@@ -11,7 +11,7 @@ pub struct TildeError {
 }
 
 impl TildeError {
-    pub(super) fn new(kind: ErrorKind, msg: impl AsRef<str>) -> Self {
+    pub fn new(kind: ErrorKind, msg: impl AsRef<str>) -> Self {
         Self {
             kind,
             msg: msg.as_ref().to_string(),
@@ -29,7 +29,7 @@ impl std::fmt::Display for TildeError {
 
 #[doc = "ErrorKind"]
 #[derive(Debug)]
-pub(super) enum ErrorKind {
+pub enum ErrorKind {
     ParseError,
     RevealError,
     EmptyImplenmentError,
