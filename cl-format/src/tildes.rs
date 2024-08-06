@@ -137,6 +137,13 @@ impl Tilde {
                             .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
                         return Ok(Box::new(Self::parse_radix));
                     }
+
+                    [.., b'%'] => {
+                        return Err(TildeError::new(
+                            ErrorKind::ParseError,
+                            "Unsupport the last symbol of '%', try to use \\n instead",
+                        ));
+                    }
                     _ => {}
                 }
             }
