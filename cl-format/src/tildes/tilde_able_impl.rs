@@ -1,6 +1,6 @@
 use super::*;
 
-impl<'a> TildeAble for Args<'a> {
+impl<'a, 'arg> TildeAble for Args<'a, 'arg> {
     fn len(&self) -> usize {
         self.left_count()
     }

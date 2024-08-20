@@ -80,7 +80,7 @@ impl TildeKindVa for Vec<&dyn TildeAble> {
 //========================================
 // TildeKindLoop
 //========================================
-impl<'a> TildeKindLoop for Args<'a> {
+impl<'a, 'arg> TildeKindLoop for Args<'a, 'arg> {
     fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         match tkind {
             // self[0] is the Vec<&dyn TildeAble> of loop
@@ -229,7 +229,7 @@ impl TildeKindCond for Option<&dyn TildeAble> {
     }
 }
 
-impl<'a> TildeKindCond for Args<'a> {
+impl<'a, 'arg> TildeKindCond for Args<'a, 'arg> {
     fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         match tkind {
             TildeKind::Cond((vv, TildeCondKind::Sharp)) => {
@@ -271,7 +271,7 @@ impl TildeKindVecTilde for TildeNil {
     }
 }
 
-impl<'a> TildeKindVecTilde for Args<'a> {
+impl<'a, 'arg> TildeKindVecTilde for Args<'a, 'arg> {
     fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         match tkind {
             TildeKind::VecTilde(vv) => {
@@ -288,7 +288,7 @@ impl<'a> TildeKindVecTilde for Args<'a> {
 //========================================
 // TildeKindStar
 //========================================
-impl<'a> TildeKindStar for Args<'a> {
+impl<'a, 'arg> TildeKindStar for Args<'a, 'arg> {
     fn format(&self, tkind: &TildeKind, _buf: &mut String) -> Result<(), TildeError> {
         match tkind {
             TildeKind::Star(StarKind::Hop) => {

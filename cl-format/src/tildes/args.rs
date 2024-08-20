@@ -1,20 +1,30 @@
+use std::borrow::Cow;
+
 use super::*;
 
 /// The args for control string to use.
 #[derive(Debug, Clone)]
-pub struct Args<'a> {
+pub struct Args<'a, 'arg> {
     len: usize,
-    inner: Vec<&'a dyn TildeAble>,
+    inner: Cow<'arg, [&'a dyn TildeAble]>,
 
     /// need mutate borrow in immutate Args
     ind: RefCell<usize>,
 }
 
-impl<'a> Args<'a> {
+impl<'a, 'arg> Args<'a, 'arg> {
     pub fn new(i: Vec<&'a dyn TildeAble>) -> Self {
         Self {
             len: i.len(),
-            inner: i,
+            inner: Cow::Owned(i),
+            ind: RefCell::new(0),
+        }
+    }
+
+    pub fn new_cow(i: &'arg [&'a dyn TildeAble]) -> Self {
+        Self {
+            len: i.len(),
+            inner: Cow::Borrowed(i),
             ind: RefCell::new(0),
         }
     }
@@ -45,39 +55,40 @@ impl<'a> Args<'a> {
     }
 }
 
-impl<'a, const N: usize> From<[&'a dyn TildeAble; N]> for Args<'a> {
+impl<'a, const N: usize> From<[&'a dyn TildeAble; N]> for Args<'a, '_> {
     fn from(value: [&'a dyn TildeAble; N]) -> Self {
         Self::new(value.to_vec())
     }
 }
 
-impl<'a> From<&'_ [&'a dyn TildeAble]> for Args<'a> {
-    fn from(value: &'_ [&'a dyn TildeAble]) -> Self {
-        Self::new(value.to_vec())
+impl<'a, 'arg> From<&'arg [&'a dyn TildeAble]> for Args<'a, 'arg> {
+    fn from(value: &'arg [&'a dyn TildeAble]) -> Self {
+        Self::new_cow(value)
     }
 }
 
-impl<'a, 's: 'a> From<Vec<&'s dyn TildeAble>> for Args<'a> {
-    fn from(value: Vec<&'s dyn TildeAble>) -> Self {
+impl<'a> From<Vec<&'a dyn TildeAble>> for Args<'a, '_> {
+    fn from(value: Vec<&'a dyn TildeAble>) -> Self {
         Self::new(value)
     }
 }
 
-impl<'a, T> From<&T> for Args<'a>
+impl<'a, 'arg, T> From<&'arg T> for Args<'a, 'arg>
 where
     T: Deref<Target = [&'a dyn TildeAble]>,
 {
-    fn from(value: &T) -> Self {
-        Self::from(value.deref())
+    fn from(value: &'arg T) -> Self {
+        //let a = value.deref();
+        Self::new_cow(value.deref())
     }
 }
 
-impl<'a> IntoIterator for Args<'a> {
+impl<'a, 'arg> IntoIterator for Args<'a, 'arg> {
     type Item = &'a dyn TildeAble;
 
     type IntoIter = std::vec::IntoIter<&'a dyn TildeAble>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.inner.into_iter()
+        self.inner.into_owned().into_iter()
     }
 }

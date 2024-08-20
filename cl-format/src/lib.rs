@@ -339,7 +339,7 @@ macro_rules! cl_format {
     ($control_str:expr, $($ele:expr),*) =>	{
 		{
 			let c = cl_format::ControlStr::new($control_str).expect("making control string has issue");
-			let a = Into::<Args<'_>>::into([$(tilde!($ele)),*]);
+			let a = Into::<Args<'_,'_>>::into([$(tilde!($ele)),*]);
 			c.reveal(a)
 		}
 	}

@@ -27,7 +27,7 @@ impl<'a> ControlStr<'a> {
 
     #[allow(dead_code)]
     #[doc = "Reveal arguments to string"]
-    pub fn reveal<'s>(&self, args: Args<'s>) -> Result<String, TildeError> {
+    pub fn reveal<'s, 'arg>(&self, args: Args<'s, 'arg>) -> Result<String, TildeError> {
         //dbg!(self);
         let mut start = 0;
         let end = self.inner.len();
@@ -98,9 +98,9 @@ mod tests {
         Ok(x)
     }
 
-    fn reveal_tildes<'x, 'a>(
+    fn reveal_tildes<'a, 'x: 'a>(
         cs: &'x ControlStr,
-        args: &'x Args<'a>,
+        args: &'x Args<'a, '_>,
     ) -> impl Iterator<Item = (&'x (usize, usize), Result<String, TildeError>)> + 'x {
         cs.tildes.iter().map(|(ind, tilde)| {
             let mut b = String::new();
