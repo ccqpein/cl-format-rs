@@ -5,7 +5,7 @@ extern crate test;
 use std::collections::VecDeque;
 
 use cl_format::*;
-use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{black_box, criterion_group, criterion_main, Criterion};
 
 fn cl_format_macro_make_string(l: &Vec<&dyn TildeAble>) -> String {
     cl_format!(

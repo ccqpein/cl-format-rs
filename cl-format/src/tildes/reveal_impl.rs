@@ -131,7 +131,7 @@ impl<'a> TildeKindLoop for Vec<&dyn TildeAble> {
                     }
                     _ => unreachable!(),
                 };
-                new_kind.match_reveal(&Args::from(self), buf)
+                new_kind.match_reveal(&Args::from(self.as_slice()), buf)
             }
             TildeKind::Loop((_, TildeLoopKind::NilColon)) => {
                 let mut new_kind = tkind.clone();
@@ -139,7 +139,7 @@ impl<'a> TildeKindLoop for Vec<&dyn TildeAble> {
                     TildeKind::Loop((_, k @ TildeLoopKind::NilColon)) => *k = TildeLoopKind::At,
                     _ => unreachable!(),
                 };
-                new_kind.match_reveal(&Args::from(self), buf)
+                new_kind.match_reveal(&Args::from(self.as_slice()), buf)
             }
             _ => Err(TildeError::new(ErrorKind::RevealError, "cannot format Vec to Loop").into()),
         }

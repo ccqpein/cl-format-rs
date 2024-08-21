@@ -55,7 +55,6 @@
 | bench_cl_format_making_loop_empty_string       | 417.72 ns |
 | bench_cl_format_macro_making_loop_string       | 1825 ns   |
 
-
 ## flamegraph ##
 
 `sudo cargo flamegraph -o bench0_flamegraph.svg --bench bench0 -- --bench`
