@@ -34,7 +34,7 @@ impl Tilde {
         self.len
     }
 
-    pub fn reveal(&self, arg: &dyn TildeAble, mut buf: &mut String) -> Result<(), TildeError> {
+    pub fn reveal(&self, arg: &dyn TildeAble, mut buf: &mut String) -> Result<()> {
         self.value.match_reveal(arg, &mut buf)?;
         Ok(())
     }
@@ -48,14 +48,15 @@ impl Tilde {
     /// start from '~' to the key char of tilde kind
     fn scan_for_kind(
         c: &mut Cursor<&'_ str>,
-    ) -> Result<fn(&mut Cursor<&'_ str>) -> Result<Tilde, TildeError>, TildeError> {
+    ) -> Result<fn(&mut Cursor<&'_ str>) -> Result<Tilde>> {
         let pos = c.position() as usize;
         let bytes = &c.get_ref().as_bytes()[pos..];
         if bytes.first() != Some(&b'~') {
             return Err(TildeError::new(
                 ErrorKind::ParseError,
                 "should start with ~",
-            ));
+            )
+            .into());
         }
 
         let mut offset = 1;
@@ -89,25 +90,26 @@ impl Tilde {
                         return Err(TildeError::new(
                             ErrorKind::ParseError,
                             "Unsupport the last symbol of '%', try to use \\n instead",
-                        ));
+                        )
+                        .into());
                     }
                     _ => {}
                 }
             }
             escape = false;
         }
-        Err(TildeError::new(ErrorKind::ParseError, "read to end"))
+        Err(TildeError::new(ErrorKind::ParseError, "read to end").into())
     }
 
     /// cursor should located on '~'
-    pub fn parse(c: &mut Cursor<&'_ str>) -> Result<Self, TildeError> {
+    pub fn parse(c: &mut Cursor<&'_ str>) -> Result<Self> {
         //dbg!(&c);
         let parser = Self::scan_for_kind(c)?;
         parser(c)
     }
 
     /// parse function for '~{~}'
-    fn parse_loop(c: &mut Cursor<&'_ str>) -> Result<Self, TildeError> {
+    fn parse_loop(c: &mut Cursor<&'_ str>) -> Result<Self> {
         let mut char_buf = [0u8; 3]; // three bytes
         c.read(&mut char_buf)
             .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
@@ -131,7 +133,8 @@ impl Tilde {
                 return Err(TildeError::new(
                     ErrorKind::ParseError,
                     "should start with ~{",
-                ));
+                )
+                .into());
             }
         }
 
@@ -198,7 +201,7 @@ impl Tilde {
     }
 
     /// parse the ~^ in loop
-    fn parse_loop_end(c: &mut Cursor<&'_ str>) -> Result<Self, TildeError> {
+    fn parse_loop_end(c: &mut Cursor<&'_ str>) -> Result<Self> {
         let mut char_buf = [0u8; 2]; // three bytes
         c.read(&mut char_buf)
             .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
@@ -208,7 +211,8 @@ impl Tilde {
             return Err(TildeError::new(
                 ErrorKind::ParseError,
                 "should start with ~^",
-            ));
+            )
+            .into());
         }
 
         Ok(Tilde {
@@ -218,7 +222,7 @@ impl Tilde {
     }
 
     /// parse the '~[~]'
-    fn parse_cond(c: &mut Cursor<&'_ str>) -> Result<Self, TildeError> {
+    fn parse_cond(c: &mut Cursor<&'_ str>) -> Result<Self> {
         let mut char_buf = [0u8; 3]; // three bytes
         let mut total_len = 0;
         let mut cond_kind;
@@ -250,7 +254,8 @@ impl Tilde {
                 return Err(TildeError::new(
                     ErrorKind::ParseError,
                     "should start with ~[, ~#[, ~@[",
-                ));
+                )
+                .into());
             }
         }
 
@@ -313,12 +318,12 @@ impl Tilde {
                             cache.push(next);
                         }
                         None => {
-                            return Err(TildeError::new(ErrorKind::ParseError, "read to end"));
+                            return Err(TildeError::new(ErrorKind::ParseError, "read to end").into());
                         }
                     }
                 }
                 None => {
-                    return Err(TildeError::new(ErrorKind::ParseError, "read to end"));
+                    return Err(TildeError::new(ErrorKind::ParseError, "read to end").into());
                 }
             }
         }
@@ -327,10 +332,7 @@ impl Tilde {
     }
 
     #[cfg(test)]
-    fn parse_vec(
-        c: &mut Cursor<&'_ str>,
-        end_len: usize,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
+    fn parse_vec(c: &mut Cursor<&'_ str>, end_len: usize) -> Result<Self> {
         let mut bucket = vec![0; end_len].into_boxed_slice();
         c.read_exact(&mut bucket)?;
 
@@ -381,7 +383,7 @@ impl Tilde {
     }
 
     /// parse function for '~a'
-    fn parse_value(c: &mut Cursor<&'_ str>) -> Result<Self, TildeError> {
+    fn parse_value(c: &mut Cursor<&'_ str>) -> Result<Self> {
         let pos = c.position() as usize;
         let bytes = &c.get_ref().as_bytes()[pos..];
         if let Some(idx) = bytes.iter().position(|&b| b == b'a' || b == b'A') {
@@ -392,11 +394,12 @@ impl Tilde {
         Err(TildeError::new(
             ErrorKind::ParseError,
             "should start with ~a",
-        ))
+        )
+        .into())
     }
 
     /// parse the float
-    fn parse_float(c: &mut Cursor<&'_ str>) -> Result<Self, TildeError> {
+    fn parse_float(c: &mut Cursor<&'_ str>) -> Result<Self> {
         let pos = c.position() as usize;
         let s_ref = *c.get_ref();
         let bytes = &s_ref.as_bytes()[pos..];
@@ -416,11 +419,12 @@ impl Tilde {
         Err(TildeError::new(
             ErrorKind::ParseError,
             "cannot find the '$' or 'f'",
-        ))
+        )
+        .into())
     }
 
     /// parse the digit
-    fn parse_digit(c: &mut Cursor<&'_ str>) -> Result<Self, TildeError> {
+    fn parse_digit(c: &mut Cursor<&'_ str>) -> Result<Self> {
         let pos = c.position() as usize;
         let s_ref = *c.get_ref();
         let bytes = &s_ref.as_bytes()[pos..];
@@ -437,11 +441,12 @@ impl Tilde {
         Err(TildeError::new(
             ErrorKind::ParseError,
             "cannot find the 'd' or 'D'",
-        ))
+        )
+        .into())
     }
 
     /// parse the star
-    fn parse_star(c: &mut Cursor<&'_ str>) -> Result<Self, TildeError> {
+    fn parse_star(c: &mut Cursor<&'_ str>) -> Result<Self> {
         let mut char_buf = [0u8; 3]; // three bytes
         c.read(&mut char_buf)
             .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
@@ -465,12 +470,13 @@ impl Tilde {
                 return Err(TildeError::new(
                     ErrorKind::ParseError,
                     "should start with ~* or ~:*",
-                ));
+                )
+                .into());
             }
         }
     }
 
-    fn parse_tildes(c: &mut Cursor<&'_ str>) -> Result<Self, TildeError> {
+    fn parse_tildes(c: &mut Cursor<&'_ str>) -> Result<Self> {
         let mut char_buf = [0u8; 3]; // three bytes
         c.read(&mut char_buf)
             .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
@@ -485,12 +491,13 @@ impl Tilde {
                 return Err(TildeError::new(
                     ErrorKind::ParseError,
                     "should start with ~n~",
-                ));
+                )
+                .into());
             }
         }
     }
 
-    fn parse_standard(c: &mut Cursor<&'_ str>) -> Result<Self, TildeError> {
+    fn parse_standard(c: &mut Cursor<&'_ str>) -> Result<Self> {
         let pos = c.position() as usize;
         let bytes = &c.get_ref().as_bytes()[pos..];
         if let Some(idx) = bytes.iter().position(|&b| b == b's' || b == b'S') {
@@ -501,10 +508,11 @@ impl Tilde {
         Err(TildeError::new(
             ErrorKind::ParseError,
             "cannot find the 's' or 'S'",
-        ))
+        )
+        .into())
     }
 
-    fn parse_char(c: &mut Cursor<&'_ str>) -> Result<Self, TildeError> {
+    fn parse_char(c: &mut Cursor<&'_ str>) -> Result<Self> {
         let mut char_buf = [0u8; 3]; // three bytes
         c.read(&mut char_buf)
             .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
@@ -528,12 +536,13 @@ impl Tilde {
                 return Err(TildeError::new(
                     ErrorKind::ParseError,
                     "should start with ~c or ~@c",
-                ));
+                )
+                .into());
             }
         }
     }
 
-    fn parse_radix(c: &mut Cursor<&'_ str>) -> Result<Self, TildeError> {
+    fn parse_radix(c: &mut Cursor<&'_ str>) -> Result<Self> {
         let mut buf = [0u8; 1];
         let mut bucket = vec![];
         loop {
@@ -542,7 +551,7 @@ impl Tilde {
                 == 0
                 || buf[0] == 0_u8
             {
-                return Err(TildeError::new(ErrorKind::ParseError, "read to end"));
+                return Err(TildeError::new(ErrorKind::ParseError, "read to end").into());
             }
 
             bucket.extend_from_slice(&buf);
@@ -561,7 +570,7 @@ impl Tilde {
         //dbg!(&splited_bucket);
 
         // helper function for parsing the usize
-        let parse_usize_helper = |a: &str| -> Result<Option<usize>, TildeError> {
+        let parse_usize_helper = |a: &str| -> Result<Option<usize>> {
             if a.len() == 0 {
                 Ok(None)
             } else {
@@ -571,7 +580,7 @@ impl Tilde {
             }
         };
 
-        let parse_u8_helper = |a: &str| -> Result<Option<u8>, TildeError> {
+        let parse_u8_helper = |a: &str| -> Result<Option<u8>> {
             if a.len() == 0 {
                 Ok(None)
             } else {
@@ -582,7 +591,7 @@ impl Tilde {
         };
 
         // helper function for parsing the char
-        let parse_char_helper = |a: &str| -> Result<Option<char>, TildeError> {
+        let parse_char_helper = |a: &str| -> Result<Option<char>> {
             if a.len() == 0 {
                 Ok(None)
             } else {
@@ -591,7 +600,7 @@ impl Tilde {
         };
 
         // helper function for parsing the radix flag
-        let parse_radix_flag = |a: &str| -> Result<(Option<usize>, Option<RadixFlag>), TildeError> {
+        let parse_radix_flag = |a: &str| -> Result<(Option<usize>, Option<RadixFlag>)> {
             match &a.split(':').collect::<Vec<_>>()[..] {
                 ["", "R"] => Ok((None, Some(RadixFlag::Colon))),
                 ["@R"] => Ok((None, Some(RadixFlag::At))),
@@ -602,7 +611,8 @@ impl Tilde {
                 _ => Err(TildeError::new(
                     ErrorKind::ParseError,
                     format!("Parsing the radix flag has problem: {}", a),
-                )),
+                )
+                .into()),
             }
         };
 
@@ -631,7 +641,8 @@ impl Tilde {
             return Err(TildeError::new(
                 ErrorKind::ParseError,
                 "The number of radix interval spaces should be 1 or 5",
-            ));
+            )
+            .into());
         }
 
         Ok(Self::new(
@@ -659,7 +670,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_va() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_parse_va() -> Result<()> {
         let mut case = Cursor::new("~a");
         assert_eq!(Tilde::parse_value(&mut case)?, Tilde::new(2, TildeKind::Va));
 
@@ -669,7 +680,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_loop() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_parse_loop() -> Result<()> {
         let mut case = Cursor::new("~{~}");
 
         assert_eq!(
@@ -802,7 +813,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_float() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_parse_float() -> Result<()> {
         let mut case = Cursor::new("~$");
         assert_eq!(
             Tilde::parse_float(&mut case)?,
@@ -825,7 +836,7 @@ mod tests {
     }
 
     #[test]
-    fn test_scan_for_kind() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_scan_for_kind() -> Result<()> {
         let case = "~a";
         let mut c = Cursor::new(case);
         let f = Tilde::scan_for_kind(&mut c)?;
@@ -841,7 +852,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_vec() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_parse_vec() -> Result<()> {
         let mut case = Cursor::new("~a and ~a~a~a");
         assert_eq!(
             Tilde::parse_vec(&mut case, 9)?,
@@ -890,7 +901,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_cond() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_parse_cond() -> Result<()> {
         let mut case = Cursor::new("~[~]");
 
         assert_eq!(
@@ -1170,7 +1181,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_star() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_parse_star() -> Result<()> {
         let mut case = Cursor::new("~:*");
         assert_eq!(
             Tilde::parse(&mut case)?,
@@ -1186,7 +1197,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_tildes() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_parse_tildes() -> Result<()> {
         let mut case = Cursor::new("~9~");
         assert_eq!(
             Tilde::parse(&mut case)?,
@@ -1202,7 +1213,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_standard() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_parse_standard() -> Result<()> {
         let mut case = Cursor::new("~s");
         assert_eq!(Tilde::parse(&mut case)?, Tilde::new(2, TildeKind::Standard));
 
@@ -1216,7 +1227,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_char() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_parse_char() -> Result<()> {
         let mut case = Cursor::new("~c");
         assert_eq!(
             Tilde::parse(&mut case)?,
@@ -1233,7 +1244,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_radix() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_parse_radix() -> Result<()> {
         //let mut case = Cursor::new("~2,8,'0,' ,R");
         let mut case = Cursor::new("~2,8,0, ,R");
         assert_eq!(

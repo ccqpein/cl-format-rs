@@ -79,7 +79,8 @@ trait TildeKindVa {
 ```
 "#]
 
-use std::{collections::HashMap, error::Error};
+use anyhow::Result;
+use std::collections::HashMap;
 
 use proc_macro::TokenStream;
 use proc_macro2::{Ident, Literal, Span};
@@ -127,7 +128,7 @@ pub fn derive_tilde_able(input: TokenStream) -> TokenStream {
                 return_types_traits.push(quote! {
                     #[doc = #doc]
                     pub trait #return_type: Debug {
-                        fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+                        fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<()> {
                             Err(TildeError::new(ErrorKind::EmptyImplenmentError, "haven't implenmented yet").into(),)
                         }
                 }})
@@ -186,7 +187,7 @@ fn parse_variant_attrs(variant: &Variant) -> (String, impl Iterator<Item = Ident
 }
 
 /// parse the `implTo` attribute
-fn get_types_impl_to(attribute: &Attribute) -> Result<impl Iterator<Item = Ident>, Box<dyn Error>> {
+fn get_types_impl_to(attribute: &Attribute) -> Result<impl Iterator<Item = Ident>> {
     let mut result = vec![];
     attribute.parse_nested_meta(|meta| {
         result.push(
@@ -207,7 +208,7 @@ mod tests {
     use syn::parse_quote;
 
     #[test]
-    fn test_get_types_impl_to() -> Result<(), Box<dyn Error>> {
+    fn test_get_types_impl_to() -> Result<()> {
         let test_case: Attribute = parse_quote! {
                 #[implTo(a,b,c,d)]
         };
@@ -246,7 +247,7 @@ mod tests {
     }
 
     #[test]
-    fn test_parse_variant_attrs() -> Result<(), Box<dyn Error>> {
+    fn test_parse_variant_attrs() -> Result<()> {
         let test_case: Variant = parse_quote! {
             #[implTo(a,b,c,d)]
             A
@@ -277,7 +278,7 @@ mod tests {
     }
 
     #[test]
-    fn test_args_picker() -> Result<(), Box<dyn Error>> {
+    fn test_args_picker() -> Result<()> {
         //let s: syn::Expr = syn::parse_str("a!(a1, &a2, a3)")?;
         //let s: Punctuated<Expr, Token![,]> = syn::parse_str("a!(a1, &a2, a3)")?;
         // let s: TokenStream = "a1, &a2, a3, [[&3]]".parse().unwrap();

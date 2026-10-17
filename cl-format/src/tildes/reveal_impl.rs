@@ -82,14 +82,14 @@ multi_tilde_impl!(
 );
 
 impl TildeKindDigit for i128 {
-    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<()> {
         push_i128(*self, buf);
         Ok(())
     }
 }
 
 impl TildeKindDigit for u128 {
-    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<()> {
         push_u128(*self, buf);
         Ok(())
     }
@@ -100,7 +100,7 @@ impl TildeKindDigit for u128 {
 //========================================
 /// impl, re-define the format method for over writing the default method
 impl TildeKindChar for char {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<()> {
         match tkind {
             TildeKind::Char(CharKind::At) => {
                 buf.push('\'');
@@ -126,7 +126,7 @@ multi_tilde_impl!(
     self,
     buf,
     {
-        write!(buf, "{}", self).map_err(|e| TildeError::new(ErrorKind::FormatError, e.to_string()))
+        write!(buf, "{}", self).map_err(|e| TildeError::new(ErrorKind::FormatError, e.to_string()).into())
     }
 );
 
@@ -153,35 +153,35 @@ multi_tilde_impl!(
 );
 
 impl TildeKindVa for i128 {
-    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<()> {
         push_i128(*self, buf);
         Ok(())
     }
 }
 
 impl TildeKindVa for u128 {
-    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<()> {
         push_u128(*self, buf);
         Ok(())
     }
 }
 
 impl TildeKindVa for char {
-    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<()> {
         buf.push(*self);
         Ok(())
     }
 }
 
 impl TildeKindVa for String {
-    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<()> {
         buf.push_str(self);
         Ok(())
     }
 }
 
 impl TildeKindVa for bool {
-    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<()> {
         if *self {
             buf.push_str("true");
         } else {
@@ -192,22 +192,23 @@ impl TildeKindVa for bool {
 }
 
 impl TildeKindVa for TildeNil {
-    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<()> {
         buf.push_str("nil");
         Ok(())
     }
 }
 
 impl TildeKindVa for Vec<&dyn TildeAble> {
-    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
-        write!(buf, "{:?}", self).map_err(|e| TildeError::new(ErrorKind::FormatError, e.to_string()))
+    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<()> {
+        write!(buf, "{:?}", self)
+            .map_err(|e| TildeError::new(ErrorKind::FormatError, e.to_string()).into())
     }
 }
 
 //========================================
 // TildeKindLoop
 //========================================
-fn reveal_loop(vv: &[Tilde], args: &Args, buf: &mut String) -> Result<(), TildeError> {
+fn reveal_loop(vv: &[Tilde], args: &Args, buf: &mut String) -> Result<()> {
     'a: loop {
         for t in vv {
             if let TildeKind::LoopEnd = t.value {
@@ -228,7 +229,7 @@ fn reveal_loop(vv: &[Tilde], args: &Args, buf: &mut String) -> Result<(), TildeE
 }
 
 impl<'a, 'arg> TildeKindLoop for Args<'a, 'arg> {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<()> {
         match tkind {
             // self[0] is the Vec<&dyn TildeAble> of loop
             TildeKind::Loop((_, TildeLoopKind::Nil | TildeLoopKind::NilColon)) => {
@@ -244,7 +245,7 @@ impl<'a, 'arg> TildeKindLoop for Args<'a, 'arg> {
 }
 
 impl<'a> TildeKindLoop for Vec<&dyn TildeAble> {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<()> {
         match tkind {
             TildeKind::Loop((vv, TildeLoopKind::Nil)) => {
                 if self.is_empty() {
@@ -264,7 +265,7 @@ impl<'a> TildeKindLoop for Vec<&dyn TildeAble> {
 // TildeKindCond
 //========================================
 impl TildeKindCond for usize {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<()> {
         //dbg!(self);
         match tkind {
             TildeKind::Cond((vv, TildeCondKind::Nil(true))) => match vv.get(*self) {
@@ -296,7 +297,7 @@ impl TildeKindCond for usize {
 }
 
 impl TildeKindCond for bool {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<()> {
         match tkind {
             TildeKind::Cond((vv, TildeCondKind::Colon)) => {
                 if *self {
@@ -325,7 +326,7 @@ impl TildeKindCond for bool {
 }
 
 impl TildeKindCond for Option<&dyn TildeAble> {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<()> {
         match tkind {
             TildeKind::Cond((vv, TildeCondKind::At)) => match self {
                 Some(a) => {
@@ -343,7 +344,7 @@ impl TildeKindCond for Option<&dyn TildeAble> {
 }
 
 impl<'a, 'arg> TildeKindCond for Args<'a, 'arg> {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<()> {
         match tkind {
             TildeKind::Cond((vv, TildeCondKind::Sharp)) => {
                 let l = self.left_count();
@@ -370,7 +371,7 @@ impl<'a, 'arg> TildeKindCond for Args<'a, 'arg> {
 // TildeKindVecTilde
 //========================================
 impl TildeKindVecTilde for TildeNil {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<()> {
         match tkind {
             TildeKind::VecTilde(vv) => {
                 for v in vv {
@@ -385,7 +386,7 @@ impl TildeKindVecTilde for TildeNil {
 }
 
 impl<'a, 'arg> TildeKindVecTilde for Args<'a, 'arg> {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<()> {
         match tkind {
             TildeKind::VecTilde(vv) => {
                 for v in vv {
@@ -402,7 +403,7 @@ impl<'a, 'arg> TildeKindVecTilde for Args<'a, 'arg> {
 // TildeKindStar
 //========================================
 impl<'a, 'arg> TildeKindStar for Args<'a, 'arg> {
-    fn format(&self, tkind: &TildeKind, _buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, tkind: &TildeKind, _buf: &mut String) -> Result<()> {
         match tkind {
             TildeKind::Star(StarKind::Hop) => {
                 self.back(); // back to last one, make it hop
@@ -422,7 +423,7 @@ impl<'a, 'arg> TildeKindStar for Args<'a, 'arg> {
 // TildeKindStandard
 //========================================
 impl TildeKindStandard for String {
-    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<()> {
         buf.push('"');
         buf.push_str(self);
         buf.push('"');
@@ -431,7 +432,7 @@ impl TildeKindStandard for String {
 }
 
 impl TildeKindStandard for char {
-    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<()> {
         buf.push('\'');
         buf.push(*self);
         buf.push('\'');
@@ -440,7 +441,7 @@ impl TildeKindStandard for char {
 }
 
 impl TildeKindStandard for bool {
-    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<()> {
         if *self {
             buf.push_str("true");
         } else {
@@ -456,7 +457,7 @@ multi_tilde_impl!(
     self,
     buf,
     {
-        write!(buf, "{}", self).map_err(|e| TildeError::new(ErrorKind::FormatError, e.to_string()))
+        write!(buf, "{}", self).map_err(|e| TildeError::new(ErrorKind::FormatError, e.to_string()).into())
     }
 );
 
@@ -483,12 +484,13 @@ const NUMERALS: [(usize, [&'static str; 10]); 4] = [
 ];
 
 /// make roman
-fn into_roman(n: usize) -> Result<String, TildeError> {
+fn into_roman(n: usize) -> Result<String> {
     if n > 3999 {
         return Err(TildeError::new(
             ErrorKind::FormatError,
             "number is too big to reveal as roman numerals",
-        ));
+        )
+        .into());
     }
     Ok(NUMERALS
         .iter()
@@ -685,7 +687,7 @@ fn format_helper(
     commachar: &Option<char>,
     comma_interval: &Option<usize>,
     flag: &Option<RadixFlag>,
-) -> Result<(), TildeError> {
+) -> Result<()> {
     let mut inner_buf = String::with_capacity(orginal.len());
     if let Some(RadixFlag::Colon) = flag {
         match comma_interval {
@@ -739,7 +741,7 @@ fn format_helper(
 }
 
 impl TildeKindRadix for isize {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<()> {
         match tkind {
             TildeKind::Radix((ra, mincol, padchar, commachar, comma_interval, flag)) => {
                 match (ra, mincol, padchar, commachar, comma_interval, flag) {
@@ -794,7 +796,8 @@ impl TildeKindRadix for isize {
                             return Err(TildeError::new(
                                 ErrorKind::FormatError,
                                 "negative cannot be roman numerals",
-                            ));
+                            )
+                            .into());
                         } else {
                             buf.push_str(&into_roman(*self as usize)?);
                         }
@@ -804,7 +807,8 @@ impl TildeKindRadix for isize {
                         return Err(TildeError::new(
                             ErrorKind::FormatError,
                             "old Roman numeral haven't supported yet",
-                        ));
+                        )
+                        .into());
                     }
 
                     (ra, _, _, _, _, _) => {
@@ -846,37 +850,37 @@ impl TildeKindRadix for isize {
 }
 
 impl TildeKindRadix for i8 {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<()> {
         TildeKindRadix::format(&Into::<isize>::into(*self), tkind, buf)
     }
 }
 
 impl TildeKindRadix for i16 {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<()> {
         TildeKindRadix::format(&Into::<isize>::into(*self), tkind, buf)
     }
 }
 
 impl TildeKindRadix for i32 {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<()> {
         TildeKindRadix::format(&(*self as isize), tkind, buf)
     }
 }
 
 impl TildeKindRadix for i64 {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<()> {
         TildeKindRadix::format(&(*self as isize), tkind, buf)
     }
 }
 
 impl TildeKindRadix for i128 {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<()> {
         TildeKindRadix::format(&(*self as isize), tkind, buf)
     }
 }
 
 impl TildeKindRadix for usize {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<()> {
         match tkind {
             TildeKind::Radix((ra, mincol, padchar, commachar, comma_interval, flag)) => {
                 match (ra, mincol, padchar, commachar, comma_interval, flag) {
@@ -912,7 +916,8 @@ impl TildeKindRadix for usize {
                         return Err(TildeError::new(
                             ErrorKind::FormatError,
                             "old Roman numeral haven't supported yet",
-                        ));
+                        )
+                        .into());
                     }
 
                     (ra, _, _, _, _, _) => {
@@ -932,29 +937,29 @@ impl TildeKindRadix for usize {
 }
 
 impl TildeKindRadix for u8 {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<()> {
         TildeKindRadix::format(&(*self as usize), tkind, buf)
     }
 }
 impl TildeKindRadix for u16 {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<()> {
         TildeKindRadix::format(&(*self as usize), tkind, buf)
     }
 }
 impl TildeKindRadix for u32 {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<()> {
         TildeKindRadix::format(&(*self as usize), tkind, buf)
     }
 }
 
 impl TildeKindRadix for u64 {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<()> {
         TildeKindRadix::format(&(*self as usize), tkind, buf)
     }
 }
 
 impl TildeKindRadix for u128 {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<()> {
         TildeKindRadix::format(&(*self as usize), tkind, buf)
     }
 }

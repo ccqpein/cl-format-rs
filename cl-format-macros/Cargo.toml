@@ -14,6 +14,7 @@ proc-macro = true
 doctest = false
 
 [dependencies]
+anyhow = "1"
 syn = { version = "2", features = ["full", "extra-traits"] }
 quote = "1"
 proc-macro2 = "1"

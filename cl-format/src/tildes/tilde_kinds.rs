@@ -1,5 +1,6 @@
 use super::Tilde;
 
+use anyhow::Result;
 use cl_format_macros::TildeAble;
 use std::fmt::Debug;
 
@@ -155,7 +156,7 @@ pub enum TildeKind {
 }
 
 impl TildeKind {
-    pub fn match_reveal(&self, arg: &dyn TildeAble, buf: &mut String) -> Result<(), TildeError> {
+    pub fn match_reveal(&self, arg: &dyn TildeAble, buf: &mut String) -> Result<()> {
         //dbg!(arg);
         //dbg!(self);
         match self {

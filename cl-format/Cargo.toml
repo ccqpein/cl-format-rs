@@ -15,5 +15,6 @@ bench = false
 doctest = false
 
 [dependencies]
+anyhow = "1"
 radix_fmt = "1.0.0"
 cl-format-macros = { version = "0.1", path = "../cl-format-macros" }

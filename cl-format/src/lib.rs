@@ -268,6 +268,7 @@ This is the table of which directives have been implemented:
 mod control_str;
 mod tildes;
 
+pub use anyhow::Result;
 pub use control_str::*;
 pub use tildes::*;
 
@@ -279,7 +280,7 @@ will expand
 
 ```rust
 impl TildeKindVa for float {
-    fn format(&self, tkind: &TildeKind) -> Result<String, Box<dyn std::error::Error>> {
+    fn format(&self, tkind: &TildeKind) -> Result<String> {
         Err("un-implenmented yet".into())
     }
 }
@@ -289,7 +290,7 @@ macro_rules! multi_tilde_impl {
     ($implName:ident, [$($y:ident),+], $s:ident, $buf:ident, $body:block) => {
 		$(
 			impl $implName for $y {
-				fn format(&$s, _: &TildeKind, $buf: &mut String) -> Result<(), TildeError>
+				fn format(&$s, _: &TildeKind, $buf: &mut String) -> Result<()>
 					$body
 
 			}
