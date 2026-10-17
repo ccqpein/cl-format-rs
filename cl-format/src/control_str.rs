@@ -1,6 +1,6 @@
 use crate::tildes::*;
 use std::fmt::Debug;
-use std::io::{BufRead, Cursor, Seek, SeekFrom};
+use std::io::Cursor;
 
 #[doc = r"The control string is the type contains control string for format.
 
@@ -32,7 +32,7 @@ impl<'a> ControlStr<'a> {
         let mut start = 0;
         let end = self.inner.len();
 
-        let mut result = String::with_capacity(args.left_count());
+        let mut result = String::with_capacity(end);
 
         for (r, t) in &self.tildes {
             result.push_str(&self.inner[start..r.0]);
@@ -48,29 +48,21 @@ impl<'a> ControlStr<'a> {
     fn scan(
         mut s: Cursor<&'_ str>,
     ) -> Result<Vec<((usize, usize), Tilde)>, Box<dyn std::error::Error + 'a>> {
-        let mut buf = vec![];
+        let bytes = s.get_ref().as_bytes();
         let mut has_read_len = 0;
         let mut result = vec![];
 
-        loop {
-            //dbg!(s.position());
-            s.read_until(b'~', &mut buf)?;
-            match buf.last() {
-                // find the next '~'
-                Some(b'~') => {
-                    has_read_len += buf.len() - 1;
-                    s.seek(SeekFrom::Current(-1))?;
-                }
-                _ => return Ok(result),
-            }
+        while let Some(rel_pos) = bytes[has_read_len..].iter().position(|&b| b == b'~') {
+            has_read_len += rel_pos;
+            s.set_position(has_read_len as u64);
 
             let t = Tilde::parse(&mut s)?;
             let end_index = has_read_len + t.len();
 
             result.push(((has_read_len, end_index), t));
             has_read_len = end_index;
-            buf.clear();
         }
+        Ok(result)
     }
 }
 

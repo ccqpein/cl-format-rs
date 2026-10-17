@@ -332,14 +332,15 @@ macro_rules! cl_format {
 	($control_str:expr) =>	{
 		{
 			let c = cl_format::ControlStr::new($control_str).expect("making control string has issue");
-			let a = cl_format::Args::new(vec![]);
+			let a = cl_format::Args::new_cow(&[]);
 			c.reveal(a)
 		}
 	};
     ($control_str:expr, $($ele:expr),*) =>	{
 		{
 			let c = cl_format::ControlStr::new($control_str).expect("making control string has issue");
-			let a = Into::<Args<'_,'_>>::into([$(tilde!($ele)),*]);
+			let arr = [$(tilde!($ele)),*];
+			let a = cl_format::Args::new_cow(&arr);
 			c.reveal(a)
 		}
 	}

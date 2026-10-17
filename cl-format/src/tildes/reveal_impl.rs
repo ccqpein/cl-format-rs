@@ -4,19 +4,96 @@ use std::iter::{self, successors};
 
 use super::*;
 
+#[inline]
+fn push_u64(mut n: u64, buf: &mut String) {
+    if n < 10 {
+        buf.push((b'0' + n as u8) as char);
+        return;
+    }
+    let mut tmp = [0u8; 20];
+    let mut i = 20;
+    while n > 0 {
+        i -= 1;
+        tmp[i] = b'0' + (n % 10) as u8;
+        n /= 10;
+    }
+    buf.push_str(unsafe { std::str::from_utf8_unchecked(&tmp[i..]) });
+}
+
+#[inline]
+fn push_i64(n: i64, buf: &mut String) {
+    if n < 0 {
+        buf.push('-');
+        push_u64(n.unsigned_abs(), buf);
+    } else {
+        push_u64(n as u64, buf);
+    }
+}
+
+#[inline]
+fn push_u128(mut n: u128, buf: &mut String) {
+    if n <= u64::MAX as u128 {
+        push_u64(n as u64, buf);
+        return;
+    }
+    let mut tmp = [0u8; 39];
+    let mut i = 39;
+    while n > 0 {
+        i -= 1;
+        tmp[i] = b'0' + (n % 10) as u8;
+        n /= 10;
+    }
+    buf.push_str(unsafe { std::str::from_utf8_unchecked(&tmp[i..]) });
+}
+
+#[inline]
+fn push_i128(n: i128, buf: &mut String) {
+    if n < 0 {
+        buf.push('-');
+        push_u128(n.unsigned_abs(), buf);
+    } else {
+        push_u128(n as u128, buf);
+    }
+}
+
 //========================================
 // TildeKindDigit
 //========================================
 multi_tilde_impl!(
     TildeKindDigit,
-    [i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, usize, isize],
+    [i8, i16, i32, i64, isize],
     self,
     buf,
     {
-        buf.push_str(self.to_string().as_str());
+        push_i64(*self as i64, buf);
         Ok(())
     }
 );
+
+multi_tilde_impl!(
+    TildeKindDigit,
+    [u8, u16, u32, u64, usize],
+    self,
+    buf,
+    {
+        push_u64(*self as u64, buf);
+        Ok(())
+    }
+);
+
+impl TildeKindDigit for i128 {
+    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+        push_i128(*self, buf);
+        Ok(())
+    }
+}
+
+impl TildeKindDigit for u128 {
+    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+        push_u128(*self, buf);
+        Ok(())
+    }
+}
 
 //========================================
 // TildeKindChar
@@ -26,11 +103,13 @@ impl TildeKindChar for char {
     fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         match tkind {
             TildeKind::Char(CharKind::At) => {
-                buf.push_str(format!("'{}'", self).as_str());
+                buf.push('\'');
+                buf.push(*self);
+                buf.push('\'');
                 Ok(())
             }
             TildeKind::Char(CharKind::Nil) => {
-                buf.push_str(self.to_string().as_str());
+                buf.push(*self);
                 Ok(())
             }
             _ => Err(TildeError::new(ErrorKind::RevealError, "cannot format to Char").into()),
@@ -43,14 +122,63 @@ impl TildeKindChar for char {
 //========================================
 multi_tilde_impl!(
     TildeKindVa,
-    [f32, f64, char, i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize, String],
+    [f32, f64],
     self,
     buf,
     {
-        buf.push_str(self.to_string().as_str());
+        write!(buf, "{}", self).map_err(|e| TildeError::new(ErrorKind::FormatError, e.to_string()))
+    }
+);
+
+multi_tilde_impl!(
+    TildeKindVa,
+    [i8, i16, i32, i64, isize],
+    self,
+    buf,
+    {
+        push_i64(*self as i64, buf);
         Ok(())
     }
 );
+
+multi_tilde_impl!(
+    TildeKindVa,
+    [u8, u16, u32, u64, usize],
+    self,
+    buf,
+    {
+        push_u64(*self as u64, buf);
+        Ok(())
+    }
+);
+
+impl TildeKindVa for i128 {
+    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+        push_i128(*self, buf);
+        Ok(())
+    }
+}
+
+impl TildeKindVa for u128 {
+    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+        push_u128(*self, buf);
+        Ok(())
+    }
+}
+
+impl TildeKindVa for char {
+    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+        buf.push(*self);
+        Ok(())
+    }
+}
+
+impl TildeKindVa for String {
+    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+        buf.push_str(self);
+        Ok(())
+    }
+}
 
 impl TildeKindVa for bool {
     fn format(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
@@ -72,14 +200,33 @@ impl TildeKindVa for TildeNil {
 
 impl TildeKindVa for Vec<&dyn TildeAble> {
     fn format(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
-        buf.push_str(format!("{:?}", self).as_str());
-        Ok(())
+        write!(buf, "{:?}", self).map_err(|e| TildeError::new(ErrorKind::FormatError, e.to_string()))
     }
 }
 
 //========================================
 // TildeKindLoop
 //========================================
+fn reveal_loop(vv: &[Tilde], args: &Args, buf: &mut String) -> Result<(), TildeError> {
+    'a: loop {
+        for t in vv {
+            if let TildeKind::LoopEnd = t.value {
+                if args.left_count() != 0 {
+                    continue;
+                } else {
+                    break 'a;
+                }
+            }
+            t.reveal(args, buf)?;
+        }
+        if args.left_count() == 0 {
+            break;
+        }
+    }
+
+    Ok(())
+}
+
 impl<'a, 'arg> TildeKindLoop for Args<'a, 'arg> {
     fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         match tkind {
@@ -87,29 +234,10 @@ impl<'a, 'arg> TildeKindLoop for Args<'a, 'arg> {
             TildeKind::Loop((_, TildeLoopKind::Nil | TildeLoopKind::NilColon)) => {
                 let a = self
                     .pop()
-                    .ok_or::<TildeError>(TildeError::new(ErrorKind::FormatError, "run out args"))?;
+                    .ok_or_else(|| TildeError::new(ErrorKind::FormatError, "run out args"))?;
                 tkind.match_reveal(a, buf)
             }
-            TildeKind::Loop((vv, TildeLoopKind::At)) => {
-                'a: loop {
-                    for t in vv {
-                        if let TildeKind::LoopEnd = t.value {
-                            if self.left_count() != 0 {
-                                continue;
-                            } else {
-                                break 'a;
-                            }
-                        }
-                        t.reveal(self, buf)?;
-                    }
-                    //dbg!(self);
-                    if self.left_count() == 0 {
-                        break;
-                    }
-                }
-
-                Ok(())
-            }
+            TildeKind::Loop((vv, TildeLoopKind::At)) => reveal_loop(vv, self, buf),
             _ => Err(TildeError::new(ErrorKind::RevealError, "cannot format Arg to Loop").into()),
         }
     }
@@ -118,28 +246,14 @@ impl<'a, 'arg> TildeKindLoop for Args<'a, 'arg> {
 impl<'a> TildeKindLoop for Vec<&dyn TildeAble> {
     fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
         match tkind {
-            TildeKind::Loop((_, TildeLoopKind::Nil)) => {
-                let mut new_kind = tkind.clone();
-
-                match &mut new_kind {
-                    TildeKind::Loop((_, k @ TildeLoopKind::Nil)) => {
-                        if self.len() != 0 {
-                            *k = TildeLoopKind::At
-                        } else {
-                            return Ok(());
-                        }
-                    }
-                    _ => unreachable!(),
-                };
-                new_kind.match_reveal(&Args::from(self.as_slice()), buf)
+            TildeKind::Loop((vv, TildeLoopKind::Nil)) => {
+                if self.is_empty() {
+                    return Ok(());
+                }
+                reveal_loop(vv, &Args::from(self.as_slice()), buf)
             }
-            TildeKind::Loop((_, TildeLoopKind::NilColon)) => {
-                let mut new_kind = tkind.clone();
-                match &mut new_kind {
-                    TildeKind::Loop((_, k @ TildeLoopKind::NilColon)) => *k = TildeLoopKind::At,
-                    _ => unreachable!(),
-                };
-                new_kind.match_reveal(&Args::from(self.as_slice()), buf)
+            TildeKind::Loop((vv, TildeLoopKind::NilColon)) => {
+                reveal_loop(vv, &Args::from(self.as_slice()), buf)
             }
             _ => Err(TildeError::new(ErrorKind::RevealError, "cannot format Vec to Loop").into()),
         }
@@ -187,7 +301,7 @@ impl TildeKindCond for bool {
             TildeKind::Cond((vv, TildeCondKind::Colon)) => {
                 if *self {
                     vv.get(1)
-                        .ok_or::<TildeError>(TildeError::new(
+                        .ok_or_else(|| TildeError::new(
                             ErrorKind::FormatError,
                             "cannot get tilde",
                         ))?
@@ -196,7 +310,7 @@ impl TildeKindCond for bool {
                     Ok(())
                 } else {
                     vv.get(0)
-                        .ok_or::<TildeError>(TildeError::new(
+                        .ok_or_else(|| TildeError::new(
                             ErrorKind::FormatError,
                             "cannot get tilde",
                         ))?
@@ -215,12 +329,11 @@ impl TildeKindCond for Option<&dyn TildeAble> {
         match tkind {
             TildeKind::Cond((vv, TildeCondKind::At)) => match self {
                 Some(a) => {
-                    //println!("here: {:?}", a);
-                    let k = TildeKind::VecTilde(vv.clone());
-                    // VecTilde need the vec
-                    // TildeCondKind::At only accept one arg
-
-                    k.match_reveal(&Args::from([*a]), buf)
+                    let args = Args::new_cow(std::slice::from_ref(a));
+                    for v in vv {
+                        v.reveal(&args, buf)?;
+                    }
+                    Ok(())
                 }
                 None => Ok(()),
             },
@@ -245,7 +358,7 @@ impl<'a, 'arg> TildeKindCond for Args<'a, 'arg> {
             TildeKind::Cond((_, _)) => {
                 let a = self
                     .pop()
-                    .ok_or::<TildeError>(TildeError::new(ErrorKind::FormatError, "run out args"))?;
+                    .ok_or_else(|| TildeError::new(ErrorKind::FormatError, "run out args"))?;
                 tkind.match_reveal(a, buf)
             }
             _ => Err(TildeError::new(ErrorKind::RevealError, "cannot format to Cond").into()),
@@ -310,26 +423,40 @@ impl<'a, 'arg> TildeKindStar for Args<'a, 'arg> {
 //========================================
 impl TildeKindStandard for String {
     fn format(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
-        buf.push_str(format!("\"{}\"", self).as_str());
+        buf.push('"');
+        buf.push_str(self);
+        buf.push('"');
         Ok(())
     }
 }
 
 impl TildeKindStandard for char {
     fn format(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
-        buf.push_str(format!("'{}'", self).as_str());
+        buf.push('\'');
+        buf.push(*self);
+        buf.push('\'');
+        Ok(())
+    }
+}
+
+impl TildeKindStandard for bool {
+    fn format(&self, _: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+        if *self {
+            buf.push_str("true");
+        } else {
+            buf.push_str("false");
+        }
         Ok(())
     }
 }
 
 multi_tilde_impl!(
     TildeKindStandard,
-    [f32, f64, bool, i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, usize, isize],
+    [f32, f64, i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, usize, isize],
     self,
     buf,
     {
-        buf.push_str(self.to_string().as_str());
-        Ok(())
+        write!(buf, "{}", self).map_err(|e| TildeError::new(ErrorKind::FormatError, e.to_string()))
     }
 );
 

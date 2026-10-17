@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::cell::Cell;
 
 use super::*;
 
@@ -9,7 +10,7 @@ pub struct Args<'a, 'arg> {
     inner: Cow<'arg, [&'a dyn TildeAble]>,
 
     /// need mutate borrow in immutate Args
-    ind: RefCell<usize>,
+    ind: Cell<usize>,
 }
 
 impl<'a, 'arg> Args<'a, 'arg> {
@@ -17,7 +18,7 @@ impl<'a, 'arg> Args<'a, 'arg> {
         Self {
             len: i.len(),
             inner: Cow::Owned(i),
-            ind: RefCell::new(0),
+            ind: Cell::new(0),
         }
     }
 
@@ -25,33 +26,38 @@ impl<'a, 'arg> Args<'a, 'arg> {
         Self {
             len: i.len(),
             inner: Cow::Borrowed(i),
-            ind: RefCell::new(0),
+            ind: Cell::new(0),
         }
     }
 
+    #[inline]
     pub fn pop(&self) -> Option<&dyn TildeAble> {
-        let r = self.inner.get(*self.ind.borrow())?;
-        *self.ind.borrow_mut() += 1;
+        let ind = self.ind.get();
+        let r = self.inner.get(ind)?;
+        self.ind.set(ind + 1);
         Some(*r)
     }
 
+    #[inline]
     pub fn back(&self) -> Option<&dyn TildeAble> {
-        let i = match *self.ind.borrow() {
+        let i = match self.ind.get() {
             0 => return None,
-            n @ _ => n - 1,
+            n => n - 1,
         };
 
         let r = self.inner.get(i)?;
-        *self.ind.borrow_mut() -= 1;
+        self.ind.set(i);
         Some(*r)
     }
 
+    #[inline]
     pub fn left_count(&self) -> usize {
-        self.len - *self.ind.borrow()
+        self.len - self.ind.get()
     }
 
+    #[inline]
     pub fn reset(&self) {
-        *self.ind.borrow_mut() = 0;
+        self.ind.set(0);
     }
 }
 

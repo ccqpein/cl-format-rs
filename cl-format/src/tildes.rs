@@ -1,9 +1,10 @@
 use crate::*;
 
-use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::fmt::Debug;
-use std::io::{BufRead, Cursor, Read, Seek, SeekFrom};
+#[cfg(test)]
+use std::io::BufRead;
+use std::io::{Cursor, Read, Seek, SeekFrom};
 use std::ops::Deref;
 
 mod tilde_kinds;
@@ -47,97 +48,43 @@ impl Tilde {
     /// start from '~' to the key char of tilde kind
     fn scan_for_kind(
         c: &mut Cursor<&'_ str>,
-    ) -> Result<
-        Box<dyn for<'a, 'b> Fn(&'a mut std::io::Cursor<&'b str>) -> Result<Tilde, TildeError>>,
-        TildeError,
-    > {
-        let mut buf = [0u8; 1];
-        c.read(&mut buf)
-            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
-        if buf[0] != b'~' {
-            return Err(TildeError::new(ErrorKind::ParseError, "should start with ~").into());
+    ) -> Result<fn(&mut Cursor<&'_ str>) -> Result<Tilde, TildeError>, TildeError> {
+        let pos = c.position() as usize;
+        let bytes = &c.get_ref().as_bytes()[pos..];
+        if bytes.first() != Some(&b'~') {
+            return Err(TildeError::new(
+                ErrorKind::ParseError,
+                "should start with ~",
+            ));
         }
 
-        let mut bucket = vec![b'~'];
-        let mut buf_offset = 1;
+        let mut offset = 1;
         let mut escape = false;
 
-        loop {
-            if c.read(&mut buf)
-                .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?
-                == 0
-                || buf[0] == 0_u8
-            {
-                return Err(TildeError::new(ErrorKind::ParseError, "read to end"));
+        while offset < bytes.len() {
+            let b = bytes[offset];
+            if b == 0 {
+                break;
             }
-
-            buf_offset += 1;
-            bucket.extend_from_slice(&buf);
-            //dbg!(&bucket);
+            offset += 1;
             if !escape {
-                match &bucket[..] {
+                match &bytes[..offset] {
                     [.., b'\\'] => {
                         // escape the next one
                         escape = true;
                         continue;
                     }
-                    [.., b'a'] | [.., b'A'] => {
-                        c.seek(SeekFrom::Current(-buf_offset))
-                            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
-                        return Ok(Box::new(Self::parse_value));
-                    }
-                    [.., b'@', b'{'] | [.., b'{'] => {
-                        c.seek(SeekFrom::Current(-buf_offset))
-                            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
-                        return Ok(Box::new(Self::parse_loop));
-                    }
-                    [.., _, b'$'] | [.., b'$'] | [.., b'f' | b'F'] => {
-                        c.seek(SeekFrom::Current(-buf_offset))
-                            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
-                        return Ok(Box::new(Self::parse_float));
-                    }
-                    [.., b'd'] | [.., b'D'] => {
-                        c.seek(SeekFrom::Current(-buf_offset))
-                            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
-                        return Ok(Box::new(Self::parse_digit));
-                    }
-                    [.., b'#' | b':' | b'@', b'['] | [.., b'['] => {
-                        c.seek(SeekFrom::Current(-buf_offset))
-                            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
-                        return Ok(Box::new(Self::parse_cond));
-                    }
-                    [.., b'^'] => {
-                        c.seek(SeekFrom::Current(-buf_offset))
-                            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
-                        return Ok(Box::new(Self::parse_loop_end));
-                    }
-                    [.., b':', b'*'] | [.., b'*'] => {
-                        c.seek(SeekFrom::Current(-buf_offset))
-                            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
-                        return Ok(Box::new(Self::parse_star));
-                    }
-                    [.., _, b'~'] => {
-                        //:= can only parse the one digit number
-                        c.seek(SeekFrom::Current(-buf_offset))
-                            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
-                        return Ok(Box::new(Self::parse_tildes));
-                    }
-                    [.., b'S'] | [.., b's'] => {
-                        c.seek(SeekFrom::Current(-buf_offset))
-                            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
-                        return Ok(Box::new(Self::parse_standard));
-                    }
-                    [.., b'@', b'c' | b'C'] | [.., b'C' | b'c'] => {
-                        c.seek(SeekFrom::Current(-buf_offset))
-                            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
-                        return Ok(Box::new(Self::parse_char));
-                    }
-                    [.., b'R' | b'r'] => {
-                        c.seek(SeekFrom::Current(-buf_offset))
-                            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?; // back to start
-                        return Ok(Box::new(Self::parse_radix));
-                    }
-
+                    [.., b'a'] | [.., b'A'] => return Ok(Self::parse_value),
+                    [.., b'@', b'{'] | [.., b'{'] => return Ok(Self::parse_loop),
+                    [.., _, b'$'] | [.., b'$'] | [.., b'f' | b'F'] => return Ok(Self::parse_float),
+                    [.., b'd'] | [.., b'D'] => return Ok(Self::parse_digit),
+                    [.., b'#' | b':' | b'@', b'['] | [.., b'['] => return Ok(Self::parse_cond),
+                    [.., b'^'] => return Ok(Self::parse_loop_end),
+                    [.., b':', b'*'] | [.., b'*'] => return Ok(Self::parse_star),
+                    [.., _, b'~'] => return Ok(Self::parse_tildes),
+                    [.., b'S'] | [.., b's'] => return Ok(Self::parse_standard),
+                    [.., b'@', b'c' | b'C'] | [.., b'C' | b'c'] => return Ok(Self::parse_char),
+                    [.., b'R' | b'r'] => return Ok(Self::parse_radix),
                     [.., b'%'] => {
                         return Err(TildeError::new(
                             ErrorKind::ParseError,
@@ -149,6 +96,7 @@ impl Tilde {
             }
             escape = false;
         }
+        Err(TildeError::new(ErrorKind::ParseError, "read to end"))
     }
 
     /// cursor should located on '~'
@@ -187,66 +135,46 @@ impl Tilde {
             }
         }
 
+        let s_ref = *c.get_ref();
+        let bytes = s_ref.as_bytes();
         let mut result = vec![];
-        let mut buf = vec![];
-        let mut char_buf = [0u8; 3];
 
         loop {
-            // read text until the next '~'
-            c.read_until(b'~', &mut buf)
-                .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
-
-            match buf.as_slice() {
-                [b'~'] => {
-                    c.seek(SeekFrom::Current(-1))
-                        .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
-                }
-                [.., b'~'] => {
-                    c.seek(SeekFrom::Current(-1))
-                        .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
+            let pos = c.position() as usize;
+            match bytes[pos..].iter().position(|&b| b == b'~') {
+                Some(0) => {}
+                Some(rel) => {
                     result.push(Tilde::new(
-                        buf.len() - 1,
-                        TildeKind::Text(
-                            String::from_utf8(buf[..buf.len() - 1].to_vec()).map_err(|e| {
-                                TildeError::new(ErrorKind::ParseError, e.to_string())
-                            })?,
-                        ),
+                        rel,
+                        TildeKind::Text(s_ref[pos..pos + rel].to_string()),
                     ));
-                    total_len += buf.len() - 1;
+                    total_len += rel;
+                    c.set_position((pos + rel) as u64);
                 }
-                [..] => {
+                None => {
+                    let rem = bytes.len() - pos;
+                    let text_len = rem.saturating_sub(1);
                     result.push(Tilde::new(
-                        buf.len() - 1,
-                        TildeKind::Text(
-                            String::from_utf8(buf[..buf.len() - 1].to_vec()).map_err(|e| {
-                                TildeError::new(ErrorKind::ParseError, e.to_string())
-                            })?,
-                        ),
+                        text_len,
+                        TildeKind::Text(s_ref[pos..pos + text_len].to_string()),
                     ));
-                    total_len += buf.len();
+                    total_len += rem;
+                    c.set_position(bytes.len() as u64);
                     return Ok(Tilde::new(total_len, TildeKind::Loop((result, loop_kind))));
                 }
             }
 
-            c.read(&mut char_buf)
-                .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
-
-            match char_buf {
-                [b'~', b'}', 0] => {
-                    return Ok(Tilde::new(
-                        total_len + 2,
-                        TildeKind::Loop((result, loop_kind)),
-                    ));
-                }
+            let pos = c.position() as usize;
+            match &bytes[pos..] {
                 [b'~', b'}', ..] => {
-                    c.seek(SeekFrom::Current(-1))
-                        .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
+                    c.set_position((pos + 2) as u64);
                     return Ok(Tilde::new(
                         total_len + 2,
                         TildeKind::Loop((result, loop_kind)),
                     ));
                 }
-                [b'~', b':', b'}'] => {
+                [b'~', b':', b'}', ..] => {
+                    c.set_position((pos + 3) as u64);
                     return Ok(Tilde::new(
                         total_len + 3,
                         TildeKind::Loop((
@@ -259,19 +187,13 @@ impl Tilde {
                         )),
                     ));
                 }
-                _ => {
-                    let back = 3 - char_buf.iter().filter(|b| **b == 0).count() as i64;
-                    c.seek(SeekFrom::Current(-back))
-                        .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
-                }
+                _ => {}
             }
 
             // read the tilde
             let next = Tilde::parse(c)?;
             total_len += next.len;
             result.push(next);
-            char_buf = [0; 3];
-            buf.clear()
         }
     }
 
@@ -332,72 +254,72 @@ impl Tilde {
             }
         }
 
-        let mut buffer = vec![];
-        let mut one_byte = [0_u8; 1];
-
+        let s_ref = *c.get_ref();
+        let bytes = s_ref.as_bytes();
         let mut cache = vec![];
         let mut result: Vec<Tilde> = vec![];
 
         loop {
-            c.read_exact(&mut one_byte)
-                .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
-            if one_byte == [0] {
+            let pos = c.position() as usize;
+            if pos >= bytes.len() {
                 break;
             }
-
-            if one_byte == [b'~'] {
-                if !buffer.is_empty() {
-                    cache.push(Tilde {
-                        len: buffer.len(),
-                        value: TildeKind::Text(
-                            String::from_utf8(buffer.clone()).map_err(|e| {
-                                TildeError::new(ErrorKind::ParseError, e.to_string())
-                            })?,
-                        ),
-                    });
-                    buffer.clear();
-                }
-
-                one_byte[0] = 0;
-                c.read_exact(&mut one_byte)
-                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
-                match one_byte {
-                    [b':'] => {
-                        one_byte[0] = 0;
-                        c.read_exact(&mut one_byte)
-                            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
-                        if one_byte == [b';'] {
+            match bytes[pos..].iter().position(|&b| b == b'~') {
+                Some(rel) => {
+                    if rel > 0 {
+                        cache.push(Tilde {
+                            len: rel,
+                            value: TildeKind::Text(s_ref[pos..pos + rel].to_string()),
+                        });
+                    }
+                    let tilde_pos = pos + rel;
+                    match bytes.get(tilde_pos + 1) {
+                        Some(&b':') => {
+                            if bytes.get(tilde_pos + 2) == Some(&b';') {
+                                let cache_len = cache.iter().map(|t: &Tilde| t.len()).sum::<usize>();
+                                result.push(Tilde::new(
+                                    cache_len,
+                                    TildeKind::VecTilde(std::mem::take(&mut cache)),
+                                ));
+                                cond_kind.to_true();
+                                total_len += 3 + cache_len;
+                                c.set_position((tilde_pos + 3) as u64);
+                            } else {
+                                panic!()
+                            }
+                        }
+                        Some(&b';') => {
                             let cache_len = cache.iter().map(|t: &Tilde| t.len()).sum::<usize>();
-                            result.push(Tilde::new(cache_len, TildeKind::VecTilde(cache.clone())));
-                            cond_kind.to_true();
-                            cache.clear();
-                            total_len += 3 + cache_len;
-                        } else {
-                            panic!()
+                            result.push(Tilde::new(
+                                cache_len,
+                                TildeKind::VecTilde(std::mem::take(&mut cache)),
+                            ));
+                            total_len += 2 + cache_len;
+                            c.set_position((tilde_pos + 2) as u64);
+                        }
+                        Some(&b']') => {
+                            let cache_len = cache.iter().map(|t: &Tilde| t.len()).sum::<usize>();
+                            result.push(Tilde::new(
+                                cache_len,
+                                TildeKind::VecTilde(std::mem::take(&mut cache)),
+                            ));
+                            total_len += 2 + cache_len;
+                            c.set_position((tilde_pos + 2) as u64);
+                            break;
+                        }
+                        Some(_) => {
+                            c.set_position(tilde_pos as u64);
+                            let next = Self::parse(c)?;
+                            cache.push(next);
+                        }
+                        None => {
+                            return Err(TildeError::new(ErrorKind::ParseError, "read to end"));
                         }
                     }
-                    [b';'] => {
-                        let cache_len = cache.iter().map(|t: &Tilde| t.len()).sum::<usize>();
-                        result.push(Tilde::new(cache_len, TildeKind::VecTilde(cache.clone())));
-                        cache.clear();
-                        total_len += 2 + cache_len;
-                    }
-                    [b']'] => {
-                        let cache_len = cache.iter().map(|t: &Tilde| t.len()).sum::<usize>();
-                        result.push(Tilde::new(cache_len, TildeKind::VecTilde(cache.clone())));
-                        total_len += 2 + cache_len;
-                        break;
-                    }
-                    _ => {
-                        c.seek(SeekFrom::Current(-2))
-                            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
-                        let c = Self::parse(c)?;
-                        cache.push(c);
-                    }
                 }
-                one_byte[0] = 0;
-            } else {
-                buffer.push(one_byte[0]);
+                None => {
+                    return Err(TildeError::new(ErrorKind::ParseError, "read to end"));
+                }
             }
         }
 
@@ -460,18 +382,12 @@ impl Tilde {
 
     /// parse function for '~a'
     fn parse_value(c: &mut Cursor<&'_ str>) -> Result<Self, TildeError> {
-        let mut buf = vec![];
-        //:= this for in maybe re-write in helper function
-        for t in [b'a', b'A'] {
-            c.read_until(t, &mut buf)
-                .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
-            match buf.last() {
-                Some(b) if *b == t => return Ok(Tilde::new(buf.len(), TildeKind::Va)),
-                _ => (),
-            }
-            c.seek(SeekFrom::Current(-(buf.len() as i64)))
-                .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
-            buf.clear();
+        let pos = c.position() as usize;
+        let bytes = &c.get_ref().as_bytes()[pos..];
+        if let Some(idx) = bytes.iter().position(|&b| b == b'a' || b == b'A') {
+            let len = idx + 1;
+            c.set_position((pos + len) as u64);
+            return Ok(Tilde::new(len, TildeKind::Va));
         }
         Err(TildeError::new(
             ErrorKind::ParseError,
@@ -481,28 +397,21 @@ impl Tilde {
 
     /// parse the float
     fn parse_float(c: &mut Cursor<&'_ str>) -> Result<Self, TildeError> {
-        let mut buf = vec![];
-
-        for t in [b'$', b'f', b'F'] {
-            c.read_until(t, &mut buf)
-                .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
-            match buf.last() {
-                Some(b) if *b == t => {
-                    return Ok(Tilde::new(
-                        buf.len(),
-                        TildeKind::Float(Some(
-                            String::from_utf8(
-                                buf.get(1..buf.len() - 1).map_or(Vec::new(), |s| s.to_vec()),
-                            )
-                            .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?,
-                        )),
-                    ))
-                }
-                _ => (),
-            }
-            c.seek(SeekFrom::Current(-(buf.len() as i64)))
-                .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
-            buf.clear();
+        let pos = c.position() as usize;
+        let s_ref = *c.get_ref();
+        let bytes = &s_ref.as_bytes()[pos..];
+        if let Some(idx) = bytes
+            .iter()
+            .position(|&b| b == b'$' || b == b'f' || b == b'F')
+        {
+            let len = idx + 1;
+            c.set_position((pos + len) as u64);
+            let param = if len > 2 {
+                s_ref[pos + 1..pos + idx].to_string()
+            } else {
+                String::new()
+            };
+            return Ok(Tilde::new(len, TildeKind::Float(Some(param))));
         }
         Err(TildeError::new(
             ErrorKind::ParseError,
@@ -512,31 +421,18 @@ impl Tilde {
 
     /// parse the digit
     fn parse_digit(c: &mut Cursor<&'_ str>) -> Result<Self, TildeError> {
-        let mut buf = vec![];
-
-        for t in [b'd', b'D'] {
-            c.read_until(t, &mut buf)
-                .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
-            match buf.last() {
-                Some(b) if *b == t => {
-                    let s = String::from_utf8(
-                        buf.get(1..buf.len() - 1).map_or(Vec::new(), |s| s.to_vec()),
-                    )
-                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
-                    return Ok(Tilde::new(
-                        buf.len(),
-                        if &s == "" {
-                            TildeKind::Digit(None)
-                        } else {
-                            TildeKind::Digit(Some(s))
-                        },
-                    ));
-                }
-                _ => (),
-            }
-            c.seek(SeekFrom::Current(-(buf.len() as i64)))
-                .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
-            buf.clear();
+        let pos = c.position() as usize;
+        let s_ref = *c.get_ref();
+        let bytes = &s_ref.as_bytes()[pos..];
+        if let Some(idx) = bytes.iter().position(|&b| b == b'd' || b == b'D') {
+            let len = idx + 1;
+            c.set_position((pos + len) as u64);
+            let param = if len > 2 {
+                Some(s_ref[pos + 1..pos + idx].to_string())
+            } else {
+                None
+            };
+            return Ok(Tilde::new(len, TildeKind::Digit(param)));
         }
         Err(TildeError::new(
             ErrorKind::ParseError,
@@ -579,14 +475,9 @@ impl Tilde {
         c.read(&mut char_buf)
             .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
         match char_buf {
-            [b'~', n @ _, b'~'] => Ok(Self {
+            [b'~', n @ b'0'..=b'9', b'~'] => Ok(Self {
                 len: 3,
-                value: TildeKind::Tildes(
-                    String::from_utf8(vec![n])
-                        .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?
-                        .parse::<usize>()
-                        .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?,
-                ),
+                value: TildeKind::Tildes((n - b'0') as usize),
             }),
             _ => {
                 c.seek(SeekFrom::Current(-3))
@@ -600,26 +491,17 @@ impl Tilde {
     }
 
     fn parse_standard(c: &mut Cursor<&'_ str>) -> Result<Self, TildeError> {
-        let mut buf = vec![];
-        let mut one_byte = [0; 1];
-        loop {
-            if c.read(&mut one_byte)
-                .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?
-                == 0
-            {
-                c.seek(SeekFrom::Current(-(buf.len() as i64)))
-                    .map_err(|e| TildeError::new(ErrorKind::ParseError, e.to_string()))?;
-                return Err(TildeError::new(
-                    ErrorKind::ParseError,
-                    "cannot find the 's' or 'S'",
-                ));
-            }
-
-            match one_byte[0] {
-                b's' | b'S' => return Ok(Tilde::new(buf.len() + 1, TildeKind::Standard)),
-                _ => buf.extend_from_slice(&one_byte),
-            }
+        let pos = c.position() as usize;
+        let bytes = &c.get_ref().as_bytes()[pos..];
+        if let Some(idx) = bytes.iter().position(|&b| b == b's' || b == b'S') {
+            let len = idx + 1;
+            c.set_position((pos + len) as u64);
+            return Ok(Tilde::new(len, TildeKind::Standard));
         }
+        Err(TildeError::new(
+            ErrorKind::ParseError,
+            "cannot find the 's' or 'S'",
+        ))
     }
 
     fn parse_char(c: &mut Cursor<&'_ str>) -> Result<Self, TildeError> {
