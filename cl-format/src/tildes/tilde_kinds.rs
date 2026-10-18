@@ -90,20 +90,18 @@ pub enum RadixFlag {
 
 #[doc = "TildeKind is the enum that including all potential kind.
 
-The most of variants inside has its implement trait. Like the `~d` is `TildeKind::Digit` and the type that can be revealed as `~a` should implement `TildeKindDigit` trait.
+Each variant corresponds to a `format_<variant>` method on the `TildeAble` trait.
 
 Check README for custom types.
 "]
 #[derive(Debug, PartialEq, TildeAble, Clone)]
 pub enum TildeKind {
-    #[implTo(char)]
     /// `~C` and `~:C`
     Char(CharKind),
 
     /// `~$`, `~5$`, and `~f`
     Float(Option<String>),
 
-    #[implTo(i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, usize, isize)]
     /// Tilde R: Radix, [doc](http://www.lispworks.com/documentation/lw50/CLHS/Body/22_cba.htm)
     Radix(
         (
@@ -116,21 +114,15 @@ pub enum TildeKind {
         ),
     ),
 
-    #[implTo(i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, usize, isize)]
     /// `~d`, `~:d`, and `~:@d`
     Digit(Option<String>),
 
-    #[implTo(
-        f32, f64, char, i8, i16, i32, i64, i128, isize, bool, u8, u16, u32, u64, u128, usize,
-        String, TildeNil
-    )]
     /// `~a`
     Va,
 
     /// `~*` and `~:*`
     Star(StarKind),
 
-    #[implTo(f32, f64, char, i32, i64, usize, bool, u32, u64, String)]
     /// `~s`
     Standard,
 
@@ -143,59 +135,24 @@ pub enum TildeKind {
     /// tilde itself
     Tildes(usize),
 
-    #[implTo(usize, bool)]
     /// `~[` and `~]` condition
     Cond((Vec<Tilde>, TildeCondKind)),
 
     /// text inside the tilde
     Text(String),
 
-    #[implTo(TildeNil)]
     /// Vec of tildes
     VecTilde(Vec<Tilde>),
 }
 
 impl TildeKind {
     pub fn match_reveal(&self, arg: &dyn TildeAble, buf: &mut String) -> Result<()> {
-        //dbg!(arg);
-        //dbg!(self);
         match self {
-            TildeKind::Char(_) => {
-                let a = arg
-                    .into_tildekind_char()
-                    .ok_or_else(|| TildeError::new(ErrorKind::RevealError, "cannot reveal to Va"))?;
-
-                return a.format(self, buf);
-            }
-            TildeKind::Float(_) => {
-                let a = arg
-                    .into_tildekind_float()
-                    .ok_or_else(|| TildeError::new(ErrorKind::RevealError, "cannot reveal to Va"))?;
-
-                return a.format(self, buf);
-            }
-            TildeKind::Digit(_) => {
-                let a = arg
-                    .into_tildekind_digit()
-                    .ok_or_else(|| TildeError::new(ErrorKind::RevealError, "cannot reveal to Va"))?;
-
-                return a.format(self, buf);
-            }
-            TildeKind::Va => {
-                //dbg!(&arg);
-                let a = arg
-                    .into_tildekind_va()
-                    .ok_or_else(|| TildeError::new(ErrorKind::RevealError, "cannot reveal to Va"))?;
-
-                return a.format(self, buf);
-            }
-            TildeKind::Loop(_) => {
-                let a = arg.into_tildekind_loop().ok_or_else(|| {
-                    TildeError::new(ErrorKind::RevealError, "cannot reveal to Loop")
-                })?;
-
-                return a.format(self, buf);
-            }
+            TildeKind::Char(_) => arg.format_char(self, buf),
+            TildeKind::Float(_) => arg.format_float(self, buf),
+            TildeKind::Digit(_) => arg.format_digit(self, buf),
+            TildeKind::Va => arg.format_va(self, buf),
+            TildeKind::Loop(_) => arg.format_loop(self, buf),
             TildeKind::LoopEnd => {
                 Err(TildeError::new(ErrorKind::RevealError, "loop end cannot reveal").into())
             }
@@ -213,30 +170,10 @@ impl TildeKind {
                 }
                 Ok(())
             }
-            TildeKind::Cond((_, _)) => {
-                let a = arg.into_tildekind_cond().ok_or_else(|| {
-                    TildeError::new(ErrorKind::RevealError, "cannot reveal to Cond")
-                })?;
-                return a.format(self, buf);
-            }
-            TildeKind::Star(_) => {
-                let a = arg.into_tildekind_star().ok_or_else(|| {
-                    TildeError::new(ErrorKind::RevealError, "cannot reveal to Star")
-                })?;
-                return a.format(self, buf);
-            }
-            TildeKind::Standard => {
-                let a = arg.into_tildekind_standard().ok_or_else(|| {
-                    TildeError::new(ErrorKind::RevealError, "cannot reveal to Standard")
-                })?;
-                return a.format(self, buf);
-            }
-            TildeKind::Radix(_) => {
-                let a = arg.into_tildekind_radix().ok_or_else(|| {
-                    TildeError::new(ErrorKind::RevealError, "cannot reveal to Radix")
-                })?;
-                return a.format(self, buf);
-            } //_ => unimplemented!(),
+            TildeKind::Cond((_, _)) => arg.format_cond(self, buf),
+            TildeKind::Star(_) => arg.format_star(self, buf),
+            TildeKind::Standard => arg.format_standard(self, buf),
+            TildeKind::Radix(_) => arg.format_radix(self, buf),
         }
     }
 }

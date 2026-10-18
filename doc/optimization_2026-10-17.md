@@ -141,12 +141,12 @@ Although it initially appeared that building the output `String` was the bottlen
 
 ## Summary Benchmark Progression
 
-| Benchmark | Baseline | Step 1 | Step 2 | Step 3 | Step 4 | Step 5 | Step 6 | Step 7 | Step 8 (Final) | Total Speedup |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| `bench_cl_format_reveal_single_a` | 58.52 ns | 57.14 ns | 51.70 ns | 50.93 ns | 51.71 ns | 39.46 ns | 30.39 ns | 30.83 ns | **30.68 ns** | **1.9x** |
-| `bench_cl_format_making_loop_string` | 681.61 ns | 369.32 ns | 356.86 ns | 325.07 ns | 264.60 ns | 130.82 ns | 105.43 ns | 105.40 ns | **103.76 ns** | **6.6x** |
-| `bench_cl_format_making_loop_empty_string` | 418.20 ns | 115.09 ns | 124.90 ns | 109.31 ns | 96.14 ns | 48.72 ns | 49.14 ns | 49.03 ns | **49.52 ns** | **8.4x** |
-| `bench_cl_format_macro_making_loop_empty_string` | 1577.9 ns | 1262.7 ns | 1254.1 ns | 1250.9 ns | 1479.2 ns | 1185.6 ns | 1204.3 ns | 653.66 ns | **407.45 ns** | **3.9x** |
-| `bench_cl_format_macro_making_loop_string` | 1842.7 ns | 1537.8 ns | 1499.3 ns | 1498.4 ns | 1698.0 ns | 1267.1 ns | 1279.7 ns | 718.85 ns | **468.87 ns** | **3.9x** |
-| `bench_normal_making_loop_string` *(reference)* | 58.17 ns | 57.77 ns | 57.62 ns | 57.09 ns | 56.80 ns | 56.18 ns | 57.93 ns | 56.39 ns | **58.42 ns** | — |
-| `bench_normal_making_loop_empty_string` *(reference)* | 12.37 ns | 12.27 ns | 12.13 ns | 12.15 ns | 12.15 ns | 12.04 ns | 12.26 ns | 12.34 ns | **12.18 ns** | — |
+| Benchmark                                             |  Baseline |    Step 1 |    Step 2 |    Step 3 |    Step 4 |    Step 5 |    Step 6 |    Step 7 | Step 8 (Final) | Total Speedup |
+|-------------------------------------------------------|----------:|----------:|----------:|----------:|----------:|----------:|----------:|----------:|---------------:|--------------:|
+| `bench_cl_format_reveal_single_a`                     |  58.52 ns |  57.14 ns |  51.70 ns |  50.93 ns |  51.71 ns |  39.46 ns |  30.39 ns |  30.83 ns |   **30.68 ns** |      **1.9x** |
+| `bench_cl_format_making_loop_string`                  | 681.61 ns | 369.32 ns | 356.86 ns | 325.07 ns | 264.60 ns | 130.82 ns | 105.43 ns | 105.40 ns |  **103.76 ns** |      **6.6x** |
+| `bench_cl_format_making_loop_empty_string`            | 418.20 ns | 115.09 ns | 124.90 ns | 109.31 ns |  96.14 ns |  48.72 ns |  49.14 ns |  49.03 ns |   **49.52 ns** |      **8.4x** |
+| `bench_cl_format_macro_making_loop_empty_string`      | 1577.9 ns | 1262.7 ns | 1254.1 ns | 1250.9 ns | 1479.2 ns | 1185.6 ns | 1204.3 ns | 653.66 ns |  **407.45 ns** |      **3.9x** |
+| `bench_cl_format_macro_making_loop_string`            | 1842.7 ns | 1537.8 ns | 1499.3 ns | 1498.4 ns | 1698.0 ns | 1267.1 ns | 1279.7 ns | 718.85 ns |  **468.87 ns** |      **3.9x** |
+| `bench_normal_making_loop_string` *(reference)*       |  58.17 ns |  57.77 ns |  57.62 ns |  57.09 ns |  56.80 ns |  56.18 ns |  57.93 ns |  56.39 ns |   **58.42 ns** |             — |
+| `bench_normal_making_loop_empty_string` *(reference)* |  12.37 ns |  12.27 ns |  12.13 ns |  12.15 ns |  12.15 ns |  12.04 ns |  12.26 ns |  12.34 ns |   **12.18 ns** |             — |

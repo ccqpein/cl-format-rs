@@ -153,7 +153,6 @@ mod tests {
         let case = "hello wor~a";
         let cs = ControlStr::new(case)?;
         let arg: &dyn TildeAble = &13_f32;
-        dbg!(arg.into_tildekind_va());
 
         let result: Vec<Option<String>> = vec!["13".to_string()]
             .into_iter()
@@ -368,7 +367,7 @@ mod tests {
         let cs = ControlStr::new(case)?;
         dbg!(&cs);
 
-        let arg: Vec<&dyn TildeAble> = vec![&Some(&1_i64 as &dyn TildeAble), &None];
+        let arg: Vec<&dyn TildeAble> = vec![&Some(&1_i64 as &dyn TildeAble), &None::<&dyn TildeAble>];
         assert_eq!(
             vec![Some("x = 1 ".to_string()), Some("".to_string())],
             parse_test_result(reveal_tildes(&cs, &(arg.into())))?
@@ -483,7 +482,7 @@ mod tests {
 
         let case = "~{~#[empty~;~a~;~a and ~a~:;~@{~a~#[~;, and ~:;, ~]~}~]~}";
         let cs = ControlStr::new(case)?;
-        let a = vec![];
+        let a: Vec<&dyn TildeAble> = vec![];
         //let a = Args::new(vec![]);
         let arg: Vec<&dyn TildeAble> = vec![&a];
         assert_eq!(

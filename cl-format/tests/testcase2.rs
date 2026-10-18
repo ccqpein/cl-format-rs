@@ -48,6 +48,20 @@ fn test_radix_0() {
         )
         .unwrap()
     );
+
+    // Passing &my_stars (Vec<String>) directly without collecting Vec<&dyn TildeAble>
+    assert_eq!(
+        String::from("my favorite team \"STeam\" will win the superbowl LVIII. And Adam Lambert, Queen, and snoop dogg will in half time show. And the scores should be 38:35"),
+        cl_format!(
+            "my favorite team ~S will win the superbowl ~@R. And ~{~#[~;~a~;~a and ~a~:;~@{~a~#[~;, and ~:;, ~]~}~]~} will in half time show. And the scores should be ~d:~d",
+            &my_team,
+            &58,
+            &my_stars,
+            &38,
+            &35
+        )
+        .unwrap()
+    );
 }
 
 #[test]
