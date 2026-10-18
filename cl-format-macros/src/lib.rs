@@ -1,82 +1,54 @@
-#![doc = r#"The macros here should auto generate several traits and the major TildeAble trait.
+#![doc = r#"Procedural macros for `cl-format`.
 
-For example:
+Provides two procedural macros:
 
-```rust
+1. `#[derive(TildeAble)]` on `TildeKind`: generates the `TildeAble` trait with default `format_<variant>` methods for each value-consuming directive variant.
+
+```rust,ignore
 #[derive(Debug, PartialEq, TildeAble)]
-pub enum TildeKind {
+pub enum TildeKind<'a> {
     /// ~C ~:C
-    #[implTo(char)]
-    Char,
+    Char(CharKind),
 
     /// ~$ ~5$ ~f
-    #[implTo(float)]
-    Float(Option<String>),
+    Float(Option<&'a str>),
 
     /// ~d ~:d ~:@d
-    Digit(Option<String>),
+    Digit(Option<&'a str>),
 
     /// ~a
-    #[implTo(float, char, String)]
     Va,
 
     /// loop
-    Loop(Vec<Tilde>),
+    Loop((Vec<Tilde<'a>>, TildeLoopKind)),
 
     /// text inside the tilde
-    Text(String),
+    Text(&'a str),
 
     /// vec
-    VecTilde(Vec<Tilde>),
+    VecTilde(Vec<Tilde<'a>>),
 }
 ```
 
-Will generate:
+which expands to:
 
-```rust
-/// all default method is return none.
-trait TildeAble {
-    fn len(&self) -> usize;
-    fn into_tildekind_char(&self) -> Option<&dyn TildeKindChar>{None}
-    fn into_tildekind_va(&self) -> Option<&dyn TildeKindVa>{None}
-    // and all other fields...
-}
+```rust,ignore
+pub trait TildeAble: Debug {
+    fn len(&self) -> usize { 1 }
+    fn as_cond_index(&self) -> Option<usize> { None }
+    fn as_cond_bool(&self) -> Option<bool> { None }
 
-impl TildeAble for char {
-    fn into_tildekind_char(&self) -> Option<&dyn TildeKindChar> {
-        Some(self)
+    fn format_char(&self, _tkind: &TildeKind, _buf: &mut String) -> Result<()> {
+        Err(TildeError::new(ErrorKind::RevealError, "cannot reveal to Char").into())
     }
-
-    fn into_tildekind_va(&self) -> Option<&dyn TildeKindVa> {
-        Some(self)
+    fn format_va(&self, _tkind: &TildeKind, _buf: &mut String) -> Result<()> {
+        Err(TildeError::new(ErrorKind::RevealError, "cannot reveal to Va").into())
     }
+    // ...and other format_<variant> methods
 }
-
-impl TildeAble for float {
-    fn into_tildekind_va(&self) -> Option<&dyn TildeKindVa> {
-        Some(self)
-    }
-}
-
-impl TildeAble for String {
-    fn into_tildekind_va(&self) -> Option<&dyn TildeKindVa> {
-        Some(self)
-    }
-}
-
-trait TildeKindChar {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
-        Err("un-implenmented yet".into())
-    }
-}
-
-trait TildeKindVa {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
-        Err("un-implenmented yet".into())
-    }
-}
-
 ```
+
+2. `cl_format_compile_time!`: validates literal format strings and argument arity at compile time, expanding flat format strings into direct buffer writes and loop/conditional format strings into `OnceLock<ControlStr<'static>>` + `TupleArgs` dispatch.
 "#]
 
 use anyhow::Result;

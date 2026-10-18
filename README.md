@@ -56,7 +56,7 @@ assert_eq!(String::from("start 1, 2, 3, abc, here"), a.unwrap());
 Let's make some loops inside the control string like Lispers do:
 
 ```rust
-let ll: Vec<&dyn TildeAble> = vec![&1, &2, &3];
+let ll = vec![1, 2, 3];
 let a = cl_format!("~a, ~a, ~a, ~{~a,~}", &1_i32, &2, &3, &ll);
 assert_eq!(String::from("1, 2, 3, 1,2,3,"), a.unwrap());
 ```
@@ -71,26 +71,27 @@ assert_eq!(String::from("1, 2, 3, 1,2,3"), a.unwrap());
 I suddenly don't want to loop the Vec anymore:
 
 ```rust
-let l = vec![&1 as &dyn TildeAble, &2, &3];
+let l = vec![1, 2, 3];
 let a = cl_format!("The value is:\n ~a", &l);
 assert_eq!(String::from("The value is:\n [1, 2, 3]"), a.unwrap());
 ```
 
 Now, we have some inconsistency between Common Lisp and Rust. In Common Lisp, `~%` in the control string is the new line, but we are in Rust now, so `\n` is going to work.
 
-For homogeneous vectors or slices (`Vec<T>`, `&[T]`), you can pass them directly without `&dyn TildeAble` or `tilde!`:
+For homogeneous collections (`Vec<T>`, `&[T]`, `[T; N]`) or fixed-size heterogeneous tuples (`(T0, T1, ...)` up to 12 elements), you can pass them directly without `&dyn TildeAble` or `tilde!`:
 
 ```rust
-let l = vec![1, 2, 3];
-let a = cl_format!("The value is:\n ~a", &l);
-assert_eq!(String::from("The value is:\n [1, 2, 3]"), a.unwrap());
-
 let words = vec!["hello", "world"];
 let a = cl_format!("~{~a~^, ~}", &words);
 assert_eq!(String::from("hello, world"), a.unwrap());
+
+// Heterogeneous tuple in ~{...~} without &dyn TildeAble:
+let mixed = (1, "two", 3.5, true);
+let a = cl_format!("~{~a~^, ~}", &mixed);
+assert_eq!(String::from("1, two, 3.5, true"), a.unwrap());
 ```
 
-If you need a heterogeneous `Vec<&dyn TildeAble>`, you can use the `tilde!` macro:
+If you need a dynamically sized heterogeneous `Vec<&dyn TildeAble>`, you can use the `tilde!` macro:
 
 ```rust
 let l = vec![tilde!(&1), &"two", &3];
@@ -117,19 +118,19 @@ let a = cl_format!("~{~a~#[~;, and ~:;, ~]~}", &l);
 assert_eq!(String::from("1, 2, 3, and 4"), a.unwrap());
 ```
 
+When you pass a string literal to `cl_format!`, the format string syntax and argument count are validated at **compile time**. Flat format strings (without `~{` or `~[`) expand directly into inline buffer writes without runtime control-string parsing, while loop/conditional format strings cache their parsed `ControlStr` in a `OnceLock` and dispatch via `TupleArgs`.
+
 ### Manually ###
 
-Using macros will generate the control string instance every time. It might be wasteful if you are trying to use a control string everywhere because it is flexible enough for multiple uses.
-
-We can generate it by ourselves:
+If you have a runtime-constructed control string or want to manage the `ControlStr` instance yourself, you can construct `ControlStr` directly:
 
 ```rust
-let cs = cl_format::ControlStr::from("~{~#[~;~a~;~a and ~a~:;~@{~a~#[~;, and ~:;, ~]~}~]~}").unwrap();
+let cs = cl_format::ControlStr::new("~{~#[~;~a~;~a and ~a~:;~@{~a~#[~;, and ~:;, ~]~}~]~}").unwrap();
 ```
 
-Then we can generate the Args for the control string to reveal:
+Then we can generate `Args` (or `TupleArgs` for zero-`dyn` static dispatch) for the control string to reveal:
 
-```rust 
+```rust
 let mut list: Vec<i32> = vec![];
 let args = Args::new(vec![&list]);
 ```
@@ -137,7 +138,7 @@ let args = Args::new(vec![&list]);
 Let's use it several times by giving different lengths of arguments:
 
 ```rust
-// this equal cl_format!(cs, &list)
+// this is equal to cl_format!(cs, &list)
 assert_eq!(cs.reveal(args).unwrap(), "".to_string());
 
 list.push(1);
@@ -155,6 +156,12 @@ assert_eq!(cs.reveal(args).unwrap(), "1, 2, and 3".to_string());
 list.push(4);
 let args = Args::new(vec![&list]);
 assert_eq!(cs.reveal(args).unwrap(), "1, 2, 3, and 4".to_string());
+
+// Or reveal directly using TupleArgs without &dyn TildeAble:
+assert_eq!(
+    cs.reveal_cursor(&TupleArgs::new((&list,))).unwrap(),
+    "1, 2, 3, and 4".to_string()
+);
 ```
 
 Let's try a mixed example: 
@@ -237,11 +244,14 @@ assert_eq!(
 
 This is the table of which directives have been implemented:
 
-| tilde                     | rust type                                                                                    |
-|:-------------------------:|:--------------------------------------------------------------------------------------------:|
-| `~a`                      | f32, f64, char, i8, i16, i32, i64, i128, isize, bool, u8, u16, u32, u64, u128, usize, String, &str, Vec<T>, &[T] |
-| `~s`                      | f32, f64, char, i8, i16, i32, i64, i128, isize, bool, u8, u16, u32, u64, u128, usize, String, &str |
-| `~d`                      | i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, usize, isize                               |
-| `~C`                      | char                                                                                         |
-| `~[~]` (normal condition) | bool, usize, Option<T>                                                                       |
-| `~R`                      | i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, usize, isize                               |
+| tilde                     | rust type                                                                                                            |
+|:-------------------------:|:--------------------------------------------------------------------------------------------------------------------:|
+| `~a`                      | f32, f64, char, i8, i16, i32, i64, i128, isize, bool, u8, u16, u32, u64, u128, usize, String, &str, Vec<T>, &[T], [T; N], (T0, ..., Tn) |
+| `~s`                      | f32, f64, char, i8, i16, i32, i64, i128, isize, bool, u8, u16, u32, u64, u128, usize, String, &str                   |
+| `~d`                      | i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, usize, isize                                                       |
+| `~C`                      | char                                                                                                                 |
+| `~f`, `~$`                | f32, f64                                                                                                             |
+| `~{~}` (loop)             | Vec<T>, &[T], [T; N], (T0, ..., Tn) (up to 12 elements)                                                              |
+| `~[~]` (condition)        | bool (`~:[`), usize (`~[`), Option<T> (`~@[`)                                                                        |
+| `~R`                      | i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, usize, isize                                                       |
+
