@@ -223,6 +223,20 @@
 | bench_cl_format_making_loop_empty_string       | 41.194 ns |
 | bench_cl_format_macro_making_loop_string       | 72.317 ns |
 
+**10/18/2026 - Step 13: Direct-dispatch `ArgCursor`, heterogeneous `TupleArgs<T>` / Tuple `TildeAble`, and compile-time `cl_format!` proc-macro**
+> Moved `pop_*` methods directly onto `ArgCursor` (eliminating intermediate `Option<&Self::Item>` unpacking), implemented `ArgCursor` for `TupleArgs<T>` and `TildeAble` for heterogeneous tuples `(T0, ..., Tn)`, and added `cl_format_compile_time!` proc-macro for compile-time format validation, arity checking, inline flat-directive codegen, and `TupleArgs` cursor dispatch.
+
+| benchmark names                                | results   |
+|------------------------------------------------|-----------|
+| bench_cl_format_reveal_single_a                | 25.515 ns |
+| bench_cl_format_making_loop_string             | 79.541 ns |
+| bench_normal_making_loop_string                | 59.443 ns |
+| bench_cl_format_macro_making_loop_empty_string | 28.475 ns |
+| bench_normal_making_loop_empty_string          | 13.298 ns |
+| bench_cl_format_making_loop_empty_string       | 37.301 ns |
+| bench_cl_format_macro_making_loop_string       | 69.331 ns |
+
 ## flamegraph ##
 
 `sudo cargo flamegraph -o bench0_flamegraph.svg --bench bench0 -- --bench`
+

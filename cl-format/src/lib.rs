@@ -238,10 +238,13 @@ This is the table of which directives have been implemented:
 
 "#]
 
+extern crate self as cl_format;
+
 mod control_str;
 mod tildes;
 
 pub use anyhow::Result;
+pub use cl_format_macros::cl_format_compile_time;
 pub use control_str::*;
 pub use tildes::*;
 
@@ -304,27 +307,10 @@ assert_eq!(String::from("1, 2, 3, and 4"), a.unwrap());
 #[macro_export]
 macro_rules! cl_format {
     ($control_str:literal) => {
-        {
-            static __CL_FORMAT_CS: std::sync::OnceLock<cl_format::ControlStr<'static>> =
-                std::sync::OnceLock::new();
-            let c = __CL_FORMAT_CS.get_or_init(|| {
-                cl_format::ControlStr::new($control_str).expect("making control string has issue")
-            });
-            let a = cl_format::Args::new_cow(&[]);
-            c.reveal(a)
-        }
+        $crate::cl_format_compile_time!($control_str)
     };
     ($control_str:literal, $($ele:expr),*) => {
-        {
-            static __CL_FORMAT_CS: std::sync::OnceLock<cl_format::ControlStr<'static>> =
-                std::sync::OnceLock::new();
-            let c = __CL_FORMAT_CS.get_or_init(|| {
-                cl_format::ControlStr::new($control_str).expect("making control string has issue")
-            });
-            let arr = [$(tilde!($ele)),*];
-            let a = cl_format::Args::new_cow(&arr);
-            c.reveal(a)
-        }
+        $crate::cl_format_compile_time!($control_str, $($ele),*)
     };
     ($control_str:expr) => {
         {
