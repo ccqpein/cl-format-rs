@@ -55,6 +55,174 @@
 | bench_cl_format_making_loop_empty_string       | 417.72 ns |
 | bench_cl_format_macro_making_loop_string       | 1825 ns   |
 
+**10/17/2026 (Baseline before optimization)**
+
+| benchmark names                                | results   |
+|------------------------------------------------|-----------|
+| bench_cl_format_reveal_single_a                | 58.522 ns |
+| bench_cl_format_making_loop_string             | 681.61 ns |
+| bench_normal_making_loop_string                | 58.165 ns |
+| bench_cl_format_macro_making_loop_empty_string | 1577.9 ns |
+| bench_normal_making_loop_empty_string          | 12.371 ns |
+| bench_cl_format_making_loop_empty_string       | 418.20 ns |
+| bench_cl_format_macro_making_loop_string       | 1842.7 ns |
+
+**10/17/2026 - Step 1: Avoid cloning `TildeKind` AST in `TildeKindLoop` and `TildeKindCond`**
+> Extracted `reveal_loop` helper in `reveal_impl.rs` so `<Vec<&dyn TildeAble> as TildeKindLoop>::format` and `<Option<&dyn TildeAble> as TildeKindCond>::format` iterate over `vv: &[Tilde]` directly instead of calling `tkind.clone()` / `vv.clone()`.
+
+| benchmark names                                | results   |
+|------------------------------------------------|-----------|
+| bench_cl_format_reveal_single_a                | 57.142 ns |
+| bench_cl_format_making_loop_string             | 369.32 ns |
+| bench_normal_making_loop_string                | 57.772 ns |
+| bench_cl_format_macro_making_loop_empty_string | 1262.7 ns |
+| bench_normal_making_loop_empty_string          | 12.267 ns |
+| bench_cl_format_making_loop_empty_string       | 115.09 ns |
+| bench_cl_format_macro_making_loop_string       | 1537.8 ns |
+
+**10/17/2026 - Step 2: Eliminate temporary `String` allocations (`to_string()` / `format!()`) during formatting**
+> Replaced `buf.push_str(self.to_string().as_str())` and `format!()` in `TildeKindVa`, `TildeKindDigit`, `TildeKindChar`, `TildeKindStandard`, and `TildeKind::Tildes` with direct `write!(buf, "{self}")`, `buf.push(...)`, and `buf.push_str(self)`.
+
+| benchmark names                                | results   |
+|------------------------------------------------|-----------|
+| bench_cl_format_reveal_single_a                | 51.700 ns |
+| bench_cl_format_making_loop_string             | 356.86 ns |
+| bench_normal_making_loop_string                | 57.621 ns |
+| bench_cl_format_macro_making_loop_empty_string | 1254.1 ns |
+| bench_normal_making_loop_empty_string          | 12.127 ns |
+| bench_cl_format_making_loop_empty_string       | 124.90 ns |
+| bench_cl_format_macro_making_loop_string       | 1499.3 ns |
+
+**10/17/2026 - Step 3: Pre-allocate `String` capacity in `ControlStr::reveal` using control string length**
+> Changed `String::with_capacity(args.left_count())` (which allocated a 1-byte buffer and forced multiple `realloc`s) to `String::with_capacity(self.inner.len())` in `ControlStr::reveal`.
+
+| benchmark names                                | results   |
+|------------------------------------------------|-----------|
+| bench_cl_format_reveal_single_a                | 50.927 ns |
+| bench_cl_format_making_loop_string             | 325.07 ns |
+| bench_normal_making_loop_string                | 57.086 ns |
+| bench_cl_format_macro_making_loop_empty_string | 1250.9 ns |
+| bench_normal_making_loop_empty_string          | 12.153 ns |
+| bench_cl_format_making_loop_empty_string       | 109.31 ns |
+| bench_cl_format_macro_making_loop_string       | 1498.4 ns |
+
+**10/17/2026 - Step 4: Use `Cell<usize>` in `Args`, `Args::new_cow` in `cl_format!`, and inline `VecTilde` in `match_reveal`**
+> Replaced `RefCell<usize>` with `Cell<usize>` in `Args`, borrowed a stack array via `Args::new_cow` in `cl_format!`, and handled `TildeKind::VecTilde` directly in `TildeKind::match_reveal`.
+
+| benchmark names                                | results   |
+|------------------------------------------------|-----------|
+| bench_cl_format_reveal_single_a                | 51.711 ns |
+| bench_cl_format_making_loop_string             | 264.60 ns |
+| bench_normal_making_loop_string                | 56.799 ns |
+| bench_cl_format_macro_making_loop_empty_string | 1479.2 ns |
+| bench_normal_making_loop_empty_string          | 12.145 ns |
+| bench_cl_format_making_loop_empty_string       | 96.144 ns |
+| bench_cl_format_macro_making_loop_string       | 1698.0 ns |
+
+**10/17/2026 - Step 5: Replace eager `.ok_or(TildeError::new(...))` with lazy `.ok_or_else(|| ...)`**
+> `Option::ok_or(TildeError::new(...))` eagerly evaluated `TildeError::new` (which heap-allocated a `String` for the error message and immediately freed it) on every single directive dispatch and `Args::pop()`, even when no error occurred. Switched to lazy `.ok_or_else(|| TildeError::new(...))`.
+
+| benchmark names                                | results   |
+|------------------------------------------------|-----------|
+| bench_cl_format_reveal_single_a                | 39.455 ns |
+| bench_cl_format_making_loop_string             | 130.82 ns |
+| bench_normal_making_loop_string                | 56.182 ns |
+| bench_cl_format_macro_making_loop_empty_string | 1185.6 ns |
+| bench_normal_making_loop_empty_string          | 12.037 ns |
+| bench_cl_format_making_loop_empty_string       | 48.723 ns |
+| bench_cl_format_macro_making_loop_string       | 1267.1 ns |
+
+**10/17/2026 - Step 6: Fast stack-buffer integer formatting in `reveal_impl.rs`**
+> Added inline `push_u64`/`push_i64`/`push_u128`/`push_i128` helpers for `TildeKindVa` and `TildeKindDigit`, bypassing `core::fmt::Formatter` and `&mut dyn fmt::Write` vtable overhead.
+
+| benchmark names                                | results   |
+|------------------------------------------------|-----------|
+| bench_cl_format_reveal_single_a                | 30.388 ns |
+| bench_cl_format_making_loop_string             | 105.43 ns |
+| bench_normal_making_loop_string                | 57.930 ns |
+| bench_cl_format_macro_making_loop_empty_string | 1204.3 ns |
+| bench_normal_making_loop_empty_string          | 12.257 ns |
+| bench_cl_format_making_loop_empty_string       | 49.136 ns |
+| bench_cl_format_macro_making_loop_string       | 1279.7 ns |
+
+**10/17/2026 - Step 7: Eliminate `bucket` allocation in `scan_for_kind` and `cache.clone()` in `parse_cond`**
+> Sliced cursor bytes directly in `Tilde::scan_for_kind` (removing `let mut bucket = vec![b'~']` and `Box<dyn Fn>`) and replaced `cache.clone()` / `buffer.clone()` with `std::mem::take` in `Tilde::parse_cond`.
+
+| benchmark names                                | results   |
+|------------------------------------------------|-----------|
+| bench_cl_format_reveal_single_a                | 30.825 ns |
+| bench_cl_format_making_loop_string             | 105.40 ns |
+| bench_normal_making_loop_string                | 56.386 ns |
+| bench_cl_format_macro_making_loop_empty_string | 653.66 ns |
+| bench_normal_making_loop_empty_string          | 12.341 ns |
+| bench_cl_format_making_loop_empty_string       | 49.032 ns |
+| bench_cl_format_macro_making_loop_string       | 718.85 ns |
+
+**10/17/2026 - Step 8: Slice `&str` / `&[u8]` directly in `ControlStr::scan` and `Tilde` parsers instead of `read_until` buffers**
+> Replaced `Cursor::read_until` / `read_exact` temporary `Vec<u8>` buffers with direct byte-slice scanning (`iter().position(...)`) and `&str` slicing in `ControlStr::scan`, `parse_loop`, `parse_cond`, `parse_value`, `parse_float`, `parse_digit`, `parse_tildes`, and `parse_standard`.
+
+| benchmark names                                | results   |
+|------------------------------------------------|-----------|
+| bench_cl_format_reveal_single_a                | 30.682 ns |
+| bench_cl_format_making_loop_string             | 103.76 ns |
+| bench_normal_making_loop_string                | 58.416 ns |
+| bench_cl_format_macro_making_loop_empty_string | 407.45 ns |
+| bench_normal_making_loop_empty_string          | 12.184 ns |
+| bench_cl_format_making_loop_empty_string       | 49.516 ns |
+| bench_cl_format_macro_making_loop_string       | 468.87 ns |
+
+**10/17/2026 - Step 9 (Arch #1, #3, #7): Single-stage `TildeAble` dispatch, generic `Vec<T>`/`&[T]`/`Option<T>`/`&str`, and `SliceArgs` cursor**
+> Collapsed the 12 generated `TildeKind*` traits into `format_*` methods directly on `TildeAble` (eliminating double vtable lookup per directive), added generic `TildeAble` implementations for `Vec<T>`, `[T]`, `[T; N]`, `Option<T>`, `str`, and `&T` using a zero-allocation `SliceArgs` cursor instead of `Args::from(self.as_slice())`, and removed unused nightly feature flags.
+
+| benchmark names                                | results   |
+|------------------------------------------------|-----------|
+| bench_cl_format_reveal_single_a                | 30.692 ns |
+| bench_cl_format_making_loop_string             | 101.68 ns |
+| bench_normal_making_loop_string                | 59.354 ns |
+| bench_cl_format_macro_making_loop_empty_string | 408.09 ns |
+| bench_normal_making_loop_empty_string          | 12.712 ns |
+| bench_cl_format_making_loop_empty_string       | 45.670 ns |
+| bench_cl_format_macro_making_loop_string       | 467.96 ns |
+
+**10/17/2026 - Step 10 (Arch #2, #6): Separate `ArgCursor` from `TildeAble`, remove `TildeNil`, and propagate `~^` via `ControlFlow<()>`**
+> Extracted `ArgCursor` trait (`type Item: TildeAble + ?Sized`) implemented for `Args` and `SliceArgs<T>`, so `TildeKind::match_reveal` and `reveal_loop` operate generically on `C: ArgCursor` without dynamic dispatch through `<Args as TildeAble>`, removed `TildeNil`, and returned `ControlFlow<()>` to support `~^` (`LoopEnd`) inside nested conditionals.
+
+| benchmark names                                | results   |
+|------------------------------------------------|-----------|
+| bench_cl_format_reveal_single_a                | 30.640 ns |
+| bench_cl_format_making_loop_string             | 81.074 ns |
+| bench_normal_making_loop_string                | 58.467 ns |
+| bench_cl_format_macro_making_loop_empty_string | 460.28 ns |
+| bench_normal_making_loop_empty_string          | 12.555 ns |
+| bench_cl_format_making_loop_empty_string       | 40.894 ns |
+| bench_cl_format_macro_making_loop_string       | 505.59 ns |
+
+**10/17/2026 - Step 11 (Arch #4): Zero-copy AST (`Tilde<'a>`, `TildeKind<'a>`) & zero-allocation parser**
+> Changed `TildeKind::Text(&'a str)`, `TildeKind::Float(Option<&'a str>)`, and `TildeKind::Digit(Option<&'a str>)` to borrow slices directly from the input control string instead of allocating `String`s, and replaced `Cursor::read`/`seek` and `parse_radix` heap allocations with direct byte-slice matching.
+
+| benchmark names                                | results   |
+|------------------------------------------------|-----------|
+| bench_cl_format_reveal_single_a                | 30.814 ns |
+| bench_cl_format_making_loop_string             | 82.480 ns |
+| bench_normal_making_loop_string                | 58.974 ns |
+| bench_cl_format_macro_making_loop_empty_string | 322.39 ns |
+| bench_normal_making_loop_empty_string          | 12.561 ns |
+| bench_cl_format_making_loop_empty_string       | 41.537 ns |
+| bench_cl_format_macro_making_loop_string       | 365.28 ns |
+
+**10/17/2026 - Step 12 (Arch #5): Per-call-site `OnceLock<ControlStr<'static>>` caching for literal control strings in `cl_format!`**
+> Added literal pattern arms in `cl_format!` that cache the parsed `ControlStr<'static>` in a call-site `static OnceLock`, eliminating repeated runtime control-string parsing when `cl_format!` is invoked with a string literal.
+
+| benchmark names                                | results   |
+|------------------------------------------------|-----------|
+| bench_cl_format_reveal_single_a                | 30.928 ns |
+| bench_cl_format_making_loop_string             | 81.351 ns |
+| bench_normal_making_loop_string                | 59.443 ns |
+| bench_cl_format_macro_making_loop_empty_string | 30.729 ns |
+| bench_normal_making_loop_empty_string          | 12.444 ns |
+| bench_cl_format_making_loop_empty_string       | 41.194 ns |
+| bench_cl_format_macro_making_loop_string       | 72.317 ns |
+
 ## flamegraph ##
 
 `sudo cargo flamegraph -o bench0_flamegraph.svg --bench bench0 -- --bench`

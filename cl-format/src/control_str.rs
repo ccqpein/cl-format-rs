@@ -1,6 +1,7 @@
 use crate::tildes::*;
+use anyhow::Result;
 use std::fmt::Debug;
-use std::io::{BufRead, Cursor, Seek, SeekFrom};
+use std::io::Cursor;
 
 #[doc = r"The control string is the type contains control string for format.
 
@@ -13,12 +14,12 @@ Use `new(&str)` to create a ControlStr and reuse this control string instance to
 #[derive(Debug, Clone, PartialEq)]
 pub struct ControlStr<'a> {
     inner: &'a str,
-    tildes: Vec<((usize, usize), Tilde)>,
+    tildes: Vec<((usize, usize), Tilde<'a>)>,
 }
 
 impl<'a> ControlStr<'a> {
     #[doc = r"Make a new ContrilStr from &str"]
-    pub fn new(s: &'a str) -> Result<Self, Box<dyn std::error::Error + 'a>> {
+    pub fn new(s: &'a str) -> Result<Self> {
         let cc = Cursor::new(s);
         let tildes = Self::scan(cc)?;
 
@@ -27,16 +28,18 @@ impl<'a> ControlStr<'a> {
 
     #[allow(dead_code)]
     #[doc = "Reveal arguments to string"]
-    pub fn reveal<'s, 'arg>(&self, args: Args<'s, 'arg>) -> Result<String, TildeError> {
+    pub fn reveal<'s, 'arg>(&self, args: Args<'s, 'arg>) -> Result<String> {
         //dbg!(self);
         let mut start = 0;
         let end = self.inner.len();
 
-        let mut result = String::with_capacity(args.left_count());
+        let mut result = String::with_capacity(end);
 
         for (r, t) in &self.tildes {
             result.push_str(&self.inner[start..r.0]);
-            t.reveal(&args, &mut result)?;
+            if t.reveal(&args, &mut result)?.is_break() {
+                return Ok(result);
+            }
             start = r.1;
         }
 
@@ -45,39 +48,29 @@ impl<'a> ControlStr<'a> {
         Ok(result)
     }
 
-    fn scan(
-        mut s: Cursor<&'_ str>,
-    ) -> Result<Vec<((usize, usize), Tilde)>, Box<dyn std::error::Error + 'a>> {
-        let mut buf = vec![];
+    fn scan(mut s: Cursor<&'a str>) -> Result<Vec<((usize, usize), Tilde<'a>)>> {
+        let bytes = s.get_ref().as_bytes();
         let mut has_read_len = 0;
         let mut result = vec![];
 
-        loop {
-            //dbg!(s.position());
-            s.read_until(b'~', &mut buf)?;
-            match buf.last() {
-                // find the next '~'
-                Some(b'~') => {
-                    has_read_len += buf.len() - 1;
-                    s.seek(SeekFrom::Current(-1))?;
-                }
-                _ => return Ok(result),
-            }
+        while let Some(rel_pos) = bytes[has_read_len..].iter().position(|&b| b == b'~') {
+            has_read_len += rel_pos;
+            s.set_position(has_read_len as u64);
 
             let t = Tilde::parse(&mut s)?;
             let end_index = has_read_len + t.len();
 
             result.push(((has_read_len, end_index), t));
             has_read_len = end_index;
-            buf.clear();
         }
+        Ok(result)
     }
 }
 
 impl<'a> TryFrom<&'a str> for ControlStr<'a> {
-    type Error = Box<dyn std::error::Error + 'a>;
+    type Error = anyhow::Error;
 
-    fn try_from(value: &'a str) -> Result<Self, Self::Error> {
+    fn try_from(value: &'a str) -> Result<Self> {
         Self::new(value)
     }
 }
@@ -89,11 +82,11 @@ mod tests {
     use super::*;
 
     fn parse_test_result<'x, 's>(
-        a: impl Iterator<Item = (&'x (usize, usize), Result<String, TildeError>)>,
-    ) -> Result<Vec<Option<String>>, String> {
+        a: impl Iterator<Item = (&'x (usize, usize), Result<String>)>,
+    ) -> Result<Vec<Option<String>>> {
         let mut x = vec![];
         for (_, aa) in a {
-            x.push(Some(aa.map_err(|e| e.to_string())?))
+            x.push(Some(aa?))
         }
         Ok(x)
     }
@@ -101,16 +94,16 @@ mod tests {
     fn reveal_tildes<'a, 'x: 'a>(
         cs: &'x ControlStr,
         args: &'x Args<'a, '_>,
-    ) -> impl Iterator<Item = (&'x (usize, usize), Result<String, TildeError>)> + 'x {
+    ) -> impl Iterator<Item = (&'x (usize, usize), Result<String>)> + 'x {
         cs.tildes.iter().map(|(ind, tilde)| {
             let mut b = String::new();
-            tilde.reveal(args, &mut b).unwrap();
+            let _ = tilde.reveal(args, &mut b).unwrap();
             (ind, Ok(b))
         })
     }
 
     #[test]
-    fn test_try_from_self() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_try_from_self() -> Result<()> {
         let case = "hello wor~{~a~}";
         let x = ControlStr::new(case)?;
         let y = x.clone();
@@ -122,7 +115,7 @@ mod tests {
     }
 
     #[test]
-    fn test_control_str_scan() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_control_str_scan() -> Result<()> {
         let case = "hello wor~{~a~}";
         let c = Cursor::new(case);
 
@@ -147,7 +140,7 @@ mod tests {
                 Tilde::new(
                     7,
                     TildeKind::Loop((
-                        vec![Tilde::new(3, TildeKind::Float(Some("5".to_string())))],
+                        vec![Tilde::new(3, TildeKind::Float(Some("5")))],
                         TildeLoopKind::Nil
                     ))
                 )
@@ -158,11 +151,10 @@ mod tests {
     }
 
     #[test]
-    fn test_reveal_normal_tildes() -> Result<(), String> {
+    fn test_reveal_normal_tildes() -> Result<()> {
         let case = "hello wor~a";
-        let cs = ControlStr::new(case).map_err(|e| e.to_string())?;
+        let cs = ControlStr::new(case)?;
         let arg: &dyn TildeAble = &13_f32;
-        dbg!(arg.into_tildekind_va());
 
         let result: Vec<Option<String>> = vec!["13".to_string()]
             .into_iter()
@@ -171,14 +163,14 @@ mod tests {
 
         assert_eq!(
             result,
-            parse_test_result(reveal_tildes(&cs, &([arg].into()))).map_err(|e| e.to_string())?
+            parse_test_result(reveal_tildes(&cs, &([arg].into())))?
         );
 
         Ok(())
     }
 
     #[test]
-    fn test_reveal_loop_tildes() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_reveal_loop_tildes() -> Result<()> {
         let case = "hello wor~{~a~}~a";
         let cs = ControlStr::new(case)?;
         //let arg0: &dyn TildeAble = &13_f32;
@@ -242,7 +234,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reveal_normal_cond_tildes() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_reveal_normal_cond_tildes() -> Result<()> {
         let case = "~[cero~;uno~;dos~]";
         let cs = ControlStr::new(case)?;
 
@@ -357,7 +349,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reveal_sharp_cond_tildes() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_reveal_sharp_cond_tildes() -> Result<()> {
         let case = "~#[NONE~;~a~;~a and ~a~:;~a, ~a~]~#[~; and ~a~:;, ~a, etc~].";
         let cs = ControlStr::new(case)?;
         dbg!(&cs);
@@ -372,12 +364,12 @@ mod tests {
     }
 
     #[test]
-    fn test_reveal_at_cond_tildes() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_reveal_at_cond_tildes() -> Result<()> {
         let case = "~@[x = ~a ~]~@[y = ~a~]";
         let cs = ControlStr::new(case)?;
         dbg!(&cs);
 
-        let arg: Vec<&dyn TildeAble> = vec![&Some(&1_i64 as &dyn TildeAble), &None];
+        let arg: Vec<&dyn TildeAble> = vec![&Some(&1_i64 as &dyn TildeAble), &None::<&dyn TildeAble>];
         assert_eq!(
             vec![Some("x = 1 ".to_string()), Some("".to_string())],
             parse_test_result(reveal_tildes(&cs, &(arg.into())))?
@@ -401,7 +393,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reveal_loop_cond_combine() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_reveal_loop_cond_combine() -> Result<()> {
         let case = "~{~a~#[~;, and ~:;, ~]~}";
         let cs = ControlStr::new(case)?;
         //dbg!(&cs);
@@ -492,7 +484,7 @@ mod tests {
 
         let case = "~{~#[empty~;~a~;~a and ~a~:;~@{~a~#[~;, and ~:;, ~]~}~]~}";
         let cs = ControlStr::new(case)?;
-        let a = vec![];
+        let a: Vec<&dyn TildeAble> = vec![];
         //let a = Args::new(vec![]);
         let arg: Vec<&dyn TildeAble> = vec![&a];
         assert_eq!(
@@ -515,7 +507,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reveal_star() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_reveal_star() -> Result<()> {
         let case = "~d ~:*(~d)";
         let cs = ControlStr::new(case)?;
         dbg!(&cs);
@@ -550,7 +542,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reveal_char() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_reveal_char() -> Result<()> {
         let case = "~c ~C ~@c";
         let cs = ControlStr::new(case)?;
         dbg!(&cs);
@@ -573,7 +565,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reveal_standard() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_reveal_standard() -> Result<()> {
         let case = "~d ~s";
         let cs = ControlStr::new(case)?;
 
@@ -589,7 +581,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reveal_radix() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_reveal_radix() -> Result<()> {
         let cs = ControlStr::new("~R")?;
         assert_eq!(
             "one".to_string(),
@@ -644,7 +636,7 @@ mod tests {
     }
 
     #[test]
-    fn test_reveal() -> Result<(), Box<dyn std::error::Error>> {
+    fn test_reveal() -> Result<()> {
         let case = "~a, ~a, ~a";
         let cs = ControlStr::new(case)?;
         assert_eq!(

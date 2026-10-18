@@ -58,19 +58,43 @@ fn play_groud_with_macro_1() {
     let a = cl_format!("~@{~a~#[~;, and ~:;, ~]~}", &1, &2, &3, &4);
     assert_eq!(String::from("1, 2, 3, and 4"), a.unwrap());
 
-    let l = vec![];
+    let l: Vec<i32> = vec![];
     let a = cl_format!(
         "~{~#[empty~;~a~;~a and ~a~:;~@{~a~#[~;, and ~:;, ~]~}~]~}",
         &l
     );
     assert_eq!(String::from(""), a.unwrap());
 
-    let l = vec![];
+    let l: Vec<i32> = vec![];
     let a = cl_format!(
         "~{~#[empty~;~a~;~a and ~a~:;~@{~a~#[~;, and ~:;, ~]~}~]~:}",
         &l
     );
     assert_eq!(String::from("empty"), a.unwrap());
+
+    // Direct Vec<i32>, Vec<&str>, &str, and Option<i32> without tilde!() or &dyn TildeAble
+    let nums = vec![1, 2, 3, 4];
+    let a = cl_format!("~{~a~#[~;, and ~:;, ~]~}", &nums);
+    assert_eq!(String::from("1, 2, 3, and 4"), a.unwrap());
+
+    let words = vec!["hello", "world"];
+    let a = cl_format!("~{~S~^ ~}", &words);
+    assert_eq!(String::from("\"hello\" \"world\""), a.unwrap());
+
+    let opt_some = Some(42);
+    let opt_none: Option<i32> = None;
+    let a = cl_format!("~@[x = ~a~]~@[y = ~a~]", &opt_some, &opt_none);
+    assert_eq!(String::from("x = 42"), a.unwrap());
+
+    // ~^ inside nested ~#[...~] conditional stops the enclosing ~{...~} loop before trailing text
+    let nums = vec![1, 2, 3];
+    let a = cl_format!("~{~a~#[~^~;, and ~:;, ~]~}", &nums);
+    assert_eq!(String::from("1, 2, and 3"), a.unwrap());
+
+    // ~:[...~] and ~[...~] clauses can consume remaining arguments
+    let is_ok = true;
+    let a = cl_format!("~:[fail: ~a~;ok: ~a~]", &is_ok, &"done");
+    assert_eq!(String::from("ok: done"), a.unwrap());
 }
 
 #[test]

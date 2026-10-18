@@ -188,37 +188,12 @@ struct MyStruct {
 }
 
 impl TildeAble for MyStruct {
-	// there are a lot methods inside, but not every of them
-	// we are need.
-	
-	// ~a is good enough
-	fn into_tildekind_va(&self) -> Option<&dyn TildeKindVa> {
-        Some(self)
-    }
-	
-	// ~d just for show case
-	fn into_tildekind_digit(&self) -> Option<&dyn TildeKindDigit> {
-        Some(self)
-    }
-	
-	// how many elements you want cl_format treat this type
-	// 1 is enough. And this one has to implement
-	fn len(&self) -> usize {
-        1
-    }
-}
-
-/// By now, your IDE should give you some errors, letting you implement `TildeKindVa` and `TildeKindDigit`. 
-
-impl TildeKindVa for MyStruct {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format_va(&self, _tkind: &TildeKind, buf: &mut String) -> Result<()> {
         buf.push_str(&format!("a: {}, b: {}", self.a, self.b));
         Ok(())
     }
-}
 
-impl TildeKindDigit for MyStruct {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format_digit(&self, _tkind: &TildeKind, buf: &mut String) -> Result<()> {
         buf.push_str(&format!("{}", self.a));
         Ok(())
     }
@@ -254,20 +229,19 @@ This is the table of which directives have been implemented:
 
 | tilde                     | rust type                                                                                    |
 |:-------------------------:|:--------------------------------------------------------------------------------------------:|
-| `~a`                      | f32, f64, char, i8, i16, i32, i64, i128, isize, bool, u8, u16, u32, u64, u128, usize, String |
-| `~s`                      | f32, f64, char, i32, i64, usize, bool, u32, u64, String                                      |
+| `~a`                      | f32, f64, char, i8, i16, i32, i64, i128, isize, bool, u8, u16, u32, u64, u128, usize, String, &str, Vec<T>, &[T] |
+| `~s`                      | f32, f64, char, i8, i16, i32, i64, i128, isize, bool, u8, u16, u32, u64, u128, usize, String, &str |
 | `~d`                      | i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, usize, isize                               |
 | `~C`                      | char                                                                                         |
-| `~[~]` (normal condition) | bool, usize                                                                                  |
+| `~[~]` (normal condition) | bool, usize, Option<T>                                                                       |
 | `~R`                      | i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, usize, isize                               |
 
 "#]
-#![feature(let_chains)]
-#![feature(pattern)]
 
 mod control_str;
 mod tildes;
 
+pub use anyhow::Result;
 pub use control_str::*;
 pub use tildes::*;
 
@@ -279,7 +253,7 @@ will expand
 
 ```rust
 impl TildeKindVa for float {
-    fn format(&self, tkind: &TildeKind) -> Result<String, Box<dyn std::error::Error>> {
+    fn format(&self, tkind: &TildeKind) -> Result<String> {
         Err("un-implenmented yet".into())
     }
 }
@@ -289,7 +263,7 @@ macro_rules! multi_tilde_impl {
     ($implName:ident, [$($y:ident),+], $s:ident, $buf:ident, $body:block) => {
 		$(
 			impl $implName for $y {
-				fn format(&$s, _: &TildeKind, $buf: &mut String) -> Result<(), TildeError>
+				fn format(&$s, _: &TildeKind, $buf: &mut String) -> Result<()>
 					$body
 
 			}
@@ -329,21 +303,44 @@ assert_eq!(String::from("1, 2, 3, and 4"), a.unwrap());
 ```"#]
 #[macro_export]
 macro_rules! cl_format {
-	($control_str:expr) =>	{
-		{
-			let c = cl_format::ControlStr::new($control_str).expect("making control string has issue");
-			let a = cl_format::Args::new(vec![]);
-			c.reveal(a)
-		}
-	};
-    ($control_str:expr, $($ele:expr),*) =>	{
-		{
-			let c = cl_format::ControlStr::new($control_str).expect("making control string has issue");
-			let a = Into::<Args<'_,'_>>::into([$(tilde!($ele)),*]);
-			c.reveal(a)
-		}
-	}
-
+    ($control_str:literal) => {
+        {
+            static __CL_FORMAT_CS: std::sync::OnceLock<cl_format::ControlStr<'static>> =
+                std::sync::OnceLock::new();
+            let c = __CL_FORMAT_CS.get_or_init(|| {
+                cl_format::ControlStr::new($control_str).expect("making control string has issue")
+            });
+            let a = cl_format::Args::new_cow(&[]);
+            c.reveal(a)
+        }
+    };
+    ($control_str:literal, $($ele:expr),*) => {
+        {
+            static __CL_FORMAT_CS: std::sync::OnceLock<cl_format::ControlStr<'static>> =
+                std::sync::OnceLock::new();
+            let c = __CL_FORMAT_CS.get_or_init(|| {
+                cl_format::ControlStr::new($control_str).expect("making control string has issue")
+            });
+            let arr = [$(tilde!($ele)),*];
+            let a = cl_format::Args::new_cow(&arr);
+            c.reveal(a)
+        }
+    };
+    ($control_str:expr) => {
+        {
+            let c = cl_format::ControlStr::new($control_str).expect("making control string has issue");
+            let a = cl_format::Args::new_cow(&[]);
+            c.reveal(a)
+        }
+    };
+    ($control_str:expr, $($ele:expr),*) => {
+        {
+            let c = cl_format::ControlStr::new($control_str).expect("making control string has issue");
+            let arr = [$(tilde!($ele)),*];
+            let a = cl_format::Args::new_cow(&arr);
+            c.reveal(a)
+        }
+    };
 }
 
 #[cfg(test)]

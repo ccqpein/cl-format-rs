@@ -7,68 +7,12 @@ struct MyStruct {
 }
 
 impl TildeAble for MyStruct {
-    fn into_tildekind_va(&self) -> Option<&dyn TildeKindVa> {
-        Some(self)
-    }
-
-    // fn into_tildekind_char(&self) -> Option<&dyn TildeKindChar> {
-    //     None
-    // }
-
-    // fn into_tildekind_float(&self) -> Option<&dyn TildeKindFloat> {
-    //     None
-    // }
-
-    fn into_tildekind_digit(&self) -> Option<&dyn TildeKindDigit> {
-        Some(self)
-    }
-
-    // fn into_tildekind_star(&self) -> Option<&dyn TildeKindStar> {
-    //     None
-    // }
-
-    // fn into_tildekind_standard(&self) -> Option<&dyn TildeKindStandard> {
-    //     None
-    // }
-
-    // fn into_tildekind_loop(&self) -> Option<&dyn TildeKindLoop> {
-    //     None
-    // }
-
-    // fn into_tildekind_loopend(&self) -> Option<&dyn TildeKindLoopEnd> {
-    //     None
-    // }
-
-    // fn into_tildekind_tildes(&self) -> Option<&dyn TildeKindTildes> {
-    //     None
-    // }
-
-    // fn into_tildekind_cond(&self) -> Option<&dyn TildeKindCond> {
-    //     None
-    // }
-
-    // fn into_tildekind_text(&self) -> Option<&dyn TildeKindText> {
-    //     None
-    // }
-
-    // fn into_tildekind_vectilde(&self) -> Option<&dyn TildeKindVecTilde> {
-    //     None
-    // }
-
-    fn len(&self) -> usize {
-        1
-    }
-}
-
-impl TildeKindVa for MyStruct {
-    fn format(&self, _tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format_va(&self, _tkind: &TildeKind, buf: &mut String) -> Result<()> {
         buf.push_str(&format!("a: {}, b: {}", self.a, self.b));
         Ok(())
     }
-}
 
-impl TildeKindDigit for MyStruct {
-    fn format(&self, _tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    fn format_digit(&self, _tkind: &TildeKind, buf: &mut String) -> Result<()> {
         buf.push_str(&format!("{}", self.a));
         Ok(())
     }

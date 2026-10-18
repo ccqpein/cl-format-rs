@@ -1,6 +1,23 @@
 [workspace]
-resolver = "2"
+resolver = "3"
 members = ["cl-format", "cl-format-macros", "benches"]
 
 [profile.bench]
 debug = true
+
+[profile.dev]
+opt-level = 0
+codegen-units = 256
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+opt-level = 3
+lto = true
+strip = true
+codegen-units = 1
+panic = "abort"
+
+[workspace.dependencies]
+cl-format-macros = { version = "0", path = "cl-format-macros" }

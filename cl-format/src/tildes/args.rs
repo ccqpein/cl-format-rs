@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::cell::Cell;
 
 use super::*;
 
@@ -9,7 +10,7 @@ pub struct Args<'a, 'arg> {
     inner: Cow<'arg, [&'a dyn TildeAble]>,
 
     /// need mutate borrow in immutate Args
-    ind: RefCell<usize>,
+    ind: Cell<usize>,
 }
 
 impl<'a, 'arg> Args<'a, 'arg> {
@@ -17,7 +18,7 @@ impl<'a, 'arg> Args<'a, 'arg> {
         Self {
             len: i.len(),
             inner: Cow::Owned(i),
-            ind: RefCell::new(0),
+            ind: Cell::new(0),
         }
     }
 
@@ -25,33 +26,111 @@ impl<'a, 'arg> Args<'a, 'arg> {
         Self {
             len: i.len(),
             inner: Cow::Borrowed(i),
-            ind: RefCell::new(0),
+            ind: Cell::new(0),
         }
     }
 
-    pub fn pop(&self) -> Option<&dyn TildeAble> {
-        let r = self.inner.get(*self.ind.borrow())?;
-        *self.ind.borrow_mut() += 1;
+    #[inline]
+    pub fn pop(&self) -> Option<&'a dyn TildeAble> {
+        let ind = self.ind.get();
+        let r = self.inner.get(ind)?;
+        self.ind.set(ind + 1);
         Some(*r)
     }
 
-    pub fn back(&self) -> Option<&dyn TildeAble> {
-        let i = match *self.ind.borrow() {
+    #[inline]
+    pub fn back(&self) -> Option<&'a dyn TildeAble> {
+        let i = match self.ind.get() {
             0 => return None,
-            n @ _ => n - 1,
+            n => n - 1,
         };
 
         let r = self.inner.get(i)?;
-        *self.ind.borrow_mut() -= 1;
+        self.ind.set(i);
         Some(*r)
     }
 
+    #[inline]
     pub fn left_count(&self) -> usize {
-        self.len - *self.ind.borrow()
+        self.len - self.ind.get()
     }
 
+    #[inline]
     pub fn reset(&self) {
-        *self.ind.borrow_mut() = 0;
+        self.ind.set(0);
+    }
+}
+
+/// Trait for argument cursors used during format string revealing.
+pub trait ArgCursor {
+    type Item: TildeAble + ?Sized;
+
+    fn pop(&self) -> Option<&Self::Item>;
+    fn back(&self) -> Option<&Self::Item>;
+    fn left_count(&self) -> usize;
+}
+
+impl<'a, 'arg> ArgCursor for Args<'a, 'arg> {
+    type Item = dyn TildeAble + 'a;
+
+    #[inline]
+    fn pop(&self) -> Option<&Self::Item> {
+        Args::pop(self)
+    }
+
+    #[inline]
+    fn back(&self) -> Option<&Self::Item> {
+        Args::back(self)
+    }
+
+    #[inline]
+    fn left_count(&self) -> usize {
+        Args::left_count(self)
+    }
+}
+
+/// Zero-allocation cursor over a homogeneous slice `&[T]` where `T: TildeAble`.
+#[derive(Debug)]
+pub struct SliceArgs<'a, T: TildeAble> {
+    slice: &'a [T],
+    ind: Cell<usize>,
+}
+
+impl<'a, T: TildeAble> SliceArgs<'a, T> {
+    #[inline]
+    pub fn new(slice: &'a [T]) -> Self {
+        Self {
+            slice,
+            ind: Cell::new(0),
+        }
+    }
+}
+
+impl<'a, T: TildeAble> ArgCursor for SliceArgs<'a, T> {
+    type Item = T;
+
+    #[inline]
+    fn pop(&self) -> Option<&Self::Item> {
+        let ind = self.ind.get();
+        let r = self.slice.get(ind)?;
+        self.ind.set(ind + 1);
+        Some(r)
+    }
+
+    #[inline]
+    fn back(&self) -> Option<&Self::Item> {
+        let i = match self.ind.get() {
+            0 => return None,
+            n => n - 1,
+        };
+        let r = self.slice.get(i)?;
+        self.ind.set(i);
+        Some(r)
+    }
+
+    #[inline]
+    fn left_count(&self) -> usize {
+        self.slice.len() - self.ind.get()
     }
 }
 

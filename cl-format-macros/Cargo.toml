@@ -1,6 +1,6 @@
 [package]
 name = "cl-format-macros"
-version = "0.1.5"
+version = "0.2.0"
 edition = "2021"
 description = "Proc macro for cl-format"
 license = "MIT"
@@ -14,6 +14,7 @@ proc-macro = true
 doctest = false
 
 [dependencies]
+anyhow = "1"
 syn = { version = "2", features = ["full", "extra-traits"] }
 quote = "1"
 proc-macro2 = "1"
