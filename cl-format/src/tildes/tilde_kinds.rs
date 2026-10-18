@@ -1,3 +1,4 @@
+use super::tildes::tilde_able_impl::reveal_loop;
 use super::Tilde;
 
 use anyhow::Result;
@@ -229,14 +230,14 @@ impl<'a> TildeKind<'a> {
             }
             TildeKind::Loop((vv, kind)) => match kind {
                 TildeLoopKind::Nil | TildeLoopKind::NilColon => {
-                    let a = args.pop().ok_or_else(|| {
-                        TildeError::new(ErrorKind::FormatError, "run out args")
-                    })?;
+                    let a = args
+                        .pop()
+                        .ok_or_else(|| TildeError::new(ErrorKind::FormatError, "run out args"))?;
                     a.format_loop(self, buf)?;
                     Ok(ControlFlow::Continue(()))
                 }
                 TildeLoopKind::At => {
-                    super::reveal_loop(vv, args, buf)?;
+                    reveal_loop(vv, args, buf)?;
                     Ok(ControlFlow::Continue(()))
                 }
             },
@@ -250,9 +251,9 @@ impl<'a> TildeKind<'a> {
                     }
                 }
                 TildeCondKind::Nil(has_default) => {
-                    let a = args.pop().ok_or_else(|| {
-                        TildeError::new(ErrorKind::FormatError, "run out args")
-                    })?;
+                    let a = args
+                        .pop()
+                        .ok_or_else(|| TildeError::new(ErrorKind::FormatError, "run out args"))?;
                     let idx = a.as_cond_index().ok_or_else(|| {
                         TildeError::new(ErrorKind::RevealError, "cannot reveal to Cond")
                     })?;
@@ -266,9 +267,9 @@ impl<'a> TildeKind<'a> {
                     }
                 }
                 TildeCondKind::Colon => {
-                    let a = args.pop().ok_or_else(|| {
-                        TildeError::new(ErrorKind::FormatError, "run out args")
-                    })?;
+                    let a = args
+                        .pop()
+                        .ok_or_else(|| TildeError::new(ErrorKind::FormatError, "run out args"))?;
                     let b = a.as_cond_bool().ok_or_else(|| {
                         TildeError::new(ErrorKind::RevealError, "cannot reveal to Cond")
                     })?;
@@ -279,9 +280,9 @@ impl<'a> TildeKind<'a> {
                     tt.reveal(args, buf)
                 }
                 TildeCondKind::At => {
-                    let a = args.pop().ok_or_else(|| {
-                        TildeError::new(ErrorKind::FormatError, "run out args")
-                    })?;
+                    let a = args
+                        .pop()
+                        .ok_or_else(|| TildeError::new(ErrorKind::FormatError, "run out args"))?;
                     a.format_cond(self, buf)?;
                     Ok(ControlFlow::Continue(()))
                 }

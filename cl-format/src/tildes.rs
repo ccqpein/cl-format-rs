@@ -7,9 +7,6 @@ use std::ops::Deref;
 mod tilde_kinds;
 pub use tilde_kinds::*;
 
-mod reveal_impl;
-pub use reveal_impl::*;
-
 mod args;
 pub use args::*;
 
@@ -53,11 +50,7 @@ impl<'a> Tilde<'a> {
         let pos = c.position() as usize;
         let bytes = &c.get_ref().as_bytes()[pos..];
         if bytes.first() != Some(&b'~') {
-            return Err(TildeError::new(
-                ErrorKind::ParseError,
-                "should start with ~",
-            )
-            .into());
+            return Err(TildeError::new(ErrorKind::ParseError, "should start with ~").into());
         }
 
         let mut offset = 1;
@@ -127,11 +120,7 @@ impl<'a> Tilde<'a> {
                 c.set_position((pos + 3) as u64);
             }
             _ => {
-                return Err(TildeError::new(
-                    ErrorKind::ParseError,
-                    "should start with ~{",
-                )
-                .into());
+                return Err(TildeError::new(ErrorKind::ParseError, "should start with ~{").into());
             }
         }
 
@@ -142,10 +131,7 @@ impl<'a> Tilde<'a> {
             match bytes[pos..].iter().position(|&b| b == b'~') {
                 Some(0) => {}
                 Some(rel) => {
-                    result.push(Tilde::new(
-                        rel,
-                        TildeKind::Text(&s_ref[pos..pos + rel]),
-                    ));
+                    result.push(Tilde::new(rel, TildeKind::Text(&s_ref[pos..pos + rel])));
                     total_len += rel;
                     c.set_position((pos + rel) as u64);
                 }
@@ -200,11 +186,7 @@ impl<'a> Tilde<'a> {
         let pos = c.position() as usize;
         let bytes = c.get_ref().as_bytes();
         if bytes.get(pos..pos + 2) != Some(b"~^") {
-            return Err(TildeError::new(
-                ErrorKind::ParseError,
-                "should start with ~^",
-            )
-            .into());
+            return Err(TildeError::new(ErrorKind::ParseError, "should start with ~^").into());
         }
         c.set_position((pos + 2) as u64);
 
@@ -310,7 +292,9 @@ impl<'a> Tilde<'a> {
                             cache.push(next);
                         }
                         None => {
-                            return Err(TildeError::new(ErrorKind::ParseError, "read to end").into());
+                            return Err(
+                                TildeError::new(ErrorKind::ParseError, "read to end").into()
+                            );
                         }
                     }
                 }
@@ -328,7 +312,9 @@ impl<'a> Tilde<'a> {
         let pos = c.position() as usize;
         let s_ref = *c.get_ref();
         if pos + end_len > s_ref.len() {
-            return Err(TildeError::new(ErrorKind::ParseError, "failed to fill whole buffer").into());
+            return Err(
+                TildeError::new(ErrorKind::ParseError, "failed to fill whole buffer").into(),
+            );
         }
         let ss = &s_ref[pos..pos + end_len];
         let mut inner_c = Cursor::new(ss);
@@ -373,11 +359,7 @@ impl<'a> Tilde<'a> {
             c.set_position((pos + len) as u64);
             return Ok(Tilde::new(len, TildeKind::Va));
         }
-        Err(TildeError::new(
-            ErrorKind::ParseError,
-            "should start with ~a",
-        )
-        .into())
+        Err(TildeError::new(ErrorKind::ParseError, "should start with ~a").into())
     }
 
     /// parse the float
@@ -398,11 +380,7 @@ impl<'a> Tilde<'a> {
             };
             return Ok(Tilde::new(len, TildeKind::Float(Some(param))));
         }
-        Err(TildeError::new(
-            ErrorKind::ParseError,
-            "cannot find the '$' or 'f'",
-        )
-        .into())
+        Err(TildeError::new(ErrorKind::ParseError, "cannot find the '$' or 'f'").into())
     }
 
     /// parse the digit
@@ -420,11 +398,7 @@ impl<'a> Tilde<'a> {
             };
             return Ok(Tilde::new(len, TildeKind::Digit(param)));
         }
-        Err(TildeError::new(
-            ErrorKind::ParseError,
-            "cannot find the 'd' or 'D'",
-        )
-        .into())
+        Err(TildeError::new(ErrorKind::ParseError, "cannot find the 'd' or 'D'").into())
     }
 
     /// parse the star
@@ -446,11 +420,7 @@ impl<'a> Tilde<'a> {
                     value: TildeKind::Star(StarKind::Skip),
                 })
             }
-            _ => Err(TildeError::new(
-                ErrorKind::ParseError,
-                "should start with ~* or ~:*",
-            )
-            .into()),
+            _ => Err(TildeError::new(ErrorKind::ParseError, "should start with ~* or ~:*").into()),
         }
     }
 
@@ -465,11 +435,7 @@ impl<'a> Tilde<'a> {
                     value: TildeKind::Tildes((*n - b'0') as usize),
                 })
             }
-            _ => Err(TildeError::new(
-                ErrorKind::ParseError,
-                "should start with ~n~",
-            )
-            .into()),
+            _ => Err(TildeError::new(ErrorKind::ParseError, "should start with ~n~").into()),
         }
     }
 
@@ -481,11 +447,7 @@ impl<'a> Tilde<'a> {
             c.set_position((pos + len) as u64);
             return Ok(Tilde::new(len, TildeKind::Standard));
         }
-        Err(TildeError::new(
-            ErrorKind::ParseError,
-            "cannot find the 's' or 'S'",
-        )
-        .into())
+        Err(TildeError::new(ErrorKind::ParseError, "cannot find the 's' or 'S'").into())
     }
 
     fn parse_char(c: &mut Cursor<&'a str>) -> Result<Self> {
@@ -506,11 +468,7 @@ impl<'a> Tilde<'a> {
                     value: TildeKind::Char(CharKind::Nil),
                 })
             }
-            _ => Err(TildeError::new(
-                ErrorKind::ParseError,
-                "should start with ~c or ~@c",
-            )
-            .into()),
+            _ => Err(TildeError::new(ErrorKind::ParseError, "should start with ~c or ~@c").into()),
         }
     }
 
@@ -582,7 +540,13 @@ impl<'a> Tilde<'a> {
 
         let mut parts = whole.split(',');
         let p0 = parts.next().unwrap_or("");
-        match (parts.next(), parts.next(), parts.next(), parts.next(), parts.next()) {
+        match (
+            parts.next(),
+            parts.next(),
+            parts.next(),
+            parts.next(),
+            parts.next(),
+        ) {
             (None, None, None, None, None) => {
                 let pair = parse_radix_flag(p0)?;
                 (radix, flag) = (pair.0.map(|x| x as u8), pair.1);
@@ -903,17 +867,11 @@ mod tests {
                         },
                         Tilde {
                             len: 3,
-                            value: TildeKind::VecTilde(vec![Tilde::new(
-                                3,
-                                TildeKind::Text("uno")
-                            )])
+                            value: TildeKind::VecTilde(vec![Tilde::new(3, TildeKind::Text("uno"))])
                         },
                         Tilde {
                             len: 3,
-                            value: TildeKind::VecTilde(vec![Tilde::new(
-                                3,
-                                TildeKind::Text("dos")
-                            )])
+                            value: TildeKind::VecTilde(vec![Tilde::new(3, TildeKind::Text("dos"))])
                         },
                     ],
                     TildeCondKind::Nil(false)
@@ -938,10 +896,7 @@ mod tests {
                         },
                         Tilde {
                             len: 3,
-                            value: TildeKind::VecTilde(vec![Tilde::new(
-                                3,
-                                TildeKind::Text("uno")
-                            )])
+                            value: TildeKind::VecTilde(vec![Tilde::new(3, TildeKind::Text("uno"))])
                         },
                         Tilde {
                             len: 0,
@@ -969,10 +924,7 @@ mod tests {
                         },
                         Tilde {
                             len: 3,
-                            value: TildeKind::VecTilde(vec![Tilde::new(
-                                3,
-                                TildeKind::Text("uno")
-                            )])
+                            value: TildeKind::VecTilde(vec![Tilde::new(3, TildeKind::Text("uno"))])
                         },
                     ],
                     TildeCondKind::Colon
@@ -997,17 +949,11 @@ mod tests {
                         },
                         Tilde {
                             len: 3,
-                            value: TildeKind::VecTilde(vec![Tilde::new(
-                                3,
-                                TildeKind::Text("uno")
-                            )])
+                            value: TildeKind::VecTilde(vec![Tilde::new(3, TildeKind::Text("uno"))])
                         },
                         Tilde {
                             len: 3,
-                            value: TildeKind::VecTilde(vec![Tilde::new(
-                                3,
-                                TildeKind::Text("dos")
-                            )])
+                            value: TildeKind::VecTilde(vec![Tilde::new(3, TildeKind::Text("dos"))])
                         },
                     ],
                     TildeCondKind::Nil(true)
