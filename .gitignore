@@ -1,4 +1,3 @@
 .DS_Store
 target
-Cargo.lock
 *flamegraph.svg

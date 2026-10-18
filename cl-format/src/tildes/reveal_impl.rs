@@ -17,7 +17,7 @@ fn push_u64(mut n: u64, buf: &mut String) {
         tmp[i] = b'0' + (n % 10) as u8;
         n /= 10;
     }
-    buf.push_str(unsafe { std::str::from_utf8_unchecked(&tmp[i..]) });
+    buf.push_str(std::str::from_utf8(&tmp[i..]).unwrap());
 }
 
 #[inline]
@@ -43,7 +43,7 @@ fn push_u128(mut n: u128, buf: &mut String) {
         tmp[i] = b'0' + (n % 10) as u8;
         n /= 10;
     }
-    buf.push_str(unsafe { std::str::from_utf8_unchecked(&tmp[i..]) });
+    buf.push_str(std::str::from_utf8(&tmp[i..]).unwrap());
 }
 
 #[inline]
