@@ -85,6 +85,16 @@ fn play_groud_with_macro_1() {
     let opt_none: Option<i32> = None;
     let a = cl_format!("~@[x = ~a~]~@[y = ~a~]", &opt_some, &opt_none);
     assert_eq!(String::from("x = 42"), a.unwrap());
+
+    // ~^ inside nested ~#[...~] conditional stops the enclosing ~{...~} loop before trailing text
+    let nums = vec![1, 2, 3];
+    let a = cl_format!("~{~a~#[~^~;, and ~:;, ~]~}", &nums);
+    assert_eq!(String::from("1, 2, and 3"), a.unwrap());
+
+    // ~:[...~] and ~[...~] clauses can consume remaining arguments
+    let is_ok = true;
+    let a = cl_format!("~:[fail: ~a~;ok: ~a~]", &is_ok, &"done");
+    assert_eq!(String::from("ok: done"), a.unwrap());
 }
 
 #[test]

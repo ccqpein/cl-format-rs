@@ -78,13 +78,24 @@ assert_eq!(String::from("The value is:\n [1, 2, 3]"), a.unwrap());
 
 Now, we have some inconsistency between Common Lisp and Rust. In Common Lisp, `~%` in the control string is the new line, but we are in Rust now, so `\n` is going to work.
 
-I think I am a bit tired of showing the type as `&dyn TildeAble` to elements inside Vec. But I haven't found a way to avoid it yet. If you know, let me know. So I added some macros:
-
+For homogeneous vectors or slices (`Vec<T>`, `&[T]`), you can pass them directly without `&dyn TildeAble` or `tilde!`:
 
 ```rust
-let l = vec![tilde!(&1), &2, &3];
+let l = vec![1, 2, 3];
 let a = cl_format!("The value is:\n ~a", &l);
 assert_eq!(String::from("The value is:\n [1, 2, 3]"), a.unwrap());
+
+let words = vec!["hello", "world"];
+let a = cl_format!("~{~a~^, ~}", &words);
+assert_eq!(String::from("hello, world"), a.unwrap());
+```
+
+If you need a heterogeneous `Vec<&dyn TildeAble>`, you can use the `tilde!` macro:
+
+```rust
+let l = vec![tilde!(&1), &"two", &3];
+let a = cl_format!("The value is:\n ~a", &l);
+assert_eq!(String::from("The value is:\n [1, \"two\", 3]"), a.unwrap());
 ```
 
 As in Common Lisp, we can loop through all arguments instead of putting them inside a Vec:
@@ -97,11 +108,11 @@ assert_eq!(String::from("1, 2, 3"), a.unwrap());
 Now, let's try some condition control (you can get the meaning of the condition control string in the `Conditional Formatting` chapter of [A Few FORMAT Recipes](https://gigamonkeys.com/book/a-few-format-recipes.html)):
 
 ```rust
-let l = vec![tilde!(&1), &2, &3];
+let l = vec![1, 2, 3];
 let a = cl_format!("~{~a~#[~;, and ~:;, ~]~}", &l);
 assert_eq!(String::from("1, 2, and 3"), a.unwrap());
 
-let l = vec![tilde!(&1), &2, &3, &4];
+let l = vec![1, 2, 3, 4];
 let a = cl_format!("~{~a~#[~;, and ~:;, ~]~}", &l);
 assert_eq!(String::from("1, 2, 3, and 4"), a.unwrap());
 ```
@@ -119,7 +130,7 @@ let cs = cl_format::ControlStr::from("~{~#[~;~a~;~a and ~a~:;~@{~a~#[~;, and ~:;
 Then we can generate the Args for the control string to reveal:
 
 ```rust 
-let mut list = vec![];
+let mut list: Vec<i32> = vec![];
 let args = Args::new(vec![&list]);
 ```
 
@@ -129,19 +140,19 @@ Let's use it several times by giving different lengths of arguments:
 // this equal cl_format!(cs, &list)
 assert_eq!(cs.reveal(args).unwrap(), "".to_string());
 
-list.push(&1);
+list.push(1);
 let args = Args::new(vec![&list]);
 assert_eq!(cs.reveal(args).unwrap(), "1".to_string());
 
-list.push(&2);
+list.push(2);
 let args = Args::new(vec![&list]);
 assert_eq!(cs.reveal(args).unwrap(), "1 and 2".to_string());
 
-list.push(&3);
+list.push(3);
 let args = Args::new(vec![&list]);
 assert_eq!(cs.reveal(args).unwrap(), "1, 2, and 3".to_string());
 
-list.push(&4);
+list.push(4);
 let args = Args::new(vec![&list]);
 assert_eq!(cs.reveal(args).unwrap(), "1, 2, 3, and 4".to_string());
 ```
@@ -149,18 +160,12 @@ assert_eq!(cs.reveal(args).unwrap(), "1, 2, 3, and 4".to_string());
 Let's try a mixed example: 
 
 ```rust
-
-let my_team = String::from("STeam");
+let my_team = "STeam";
 let my_stars = vec![
-    String::from("Adam Lambert"),
-    String::from("Queen"),
-    String::from("snoop dogg"),
+    "Adam Lambert",
+    "Queen",
+    "snoop dogg",
 ];
-
-let stars = my_stars
-    .iter()
-    .map(|s| tilde!(s))
-    .collect::<Vec<&dyn TildeAble>>();
 	
 assert_eq!(
     String::from("my favorite team \"STeam\" will win the superbowl LVIII. And Adam Lambert, Queen, and snoop dogg will in half time show. And the scores should be 38:35"),
@@ -168,25 +173,24 @@ assert_eq!(
         "my favorite team ~S will win the superbowl ~@R. And ~{~#[~;~a~;~a and ~a~:;~@{~a~#[~;, and ~:;, ~]~}~]~} will in half time show. And the scores should be ~d:~d",
         &my_team,
         &58,
-        &stars,
+        &my_stars,
         &38,
         &35
     )
     .unwrap()
 );
-
 ```
 
 ### Implement for custom type ###
 
 So far, we have only shown the basic types. It would be better if we could make our type be revealed as well.
 
-Here is a demo on how to implement:
+Here is a demo on how to implement `TildeAble`:
 
 ```rust
 use cl_format::*;
 
-// has to derive to Debug
+// has to derive Debug
 #[derive(Debug)]
 struct MyStruct {
     a: usize,
@@ -194,39 +198,14 @@ struct MyStruct {
 }
 
 impl TildeAble for MyStruct {
-	// there are a lot methods inside, but not every of them
-	// we are need.
-	
-	// ~a is good enough
-	fn into_tildekind_va(&self) -> Option<&dyn TildeKindVa> {
-        Some(self)
-    }
-	
-	// ~d just for show case
-	fn into_tildekind_digit(&self) -> Option<&dyn TildeKindDigit> {
-        Some(self)
-    }
-	
-	// how many elements you want cl_format treat this type
-	// 1 is enough. And this one has to implement
-	fn len(&self) -> usize {
-        1
-    }
-}
-```
-
-By now, your IDE should give you some errors, letting you implement `TildeKindVa` and `TildeKindDigit`. 
-
-```rust
-impl TildeKindVa for MyStruct {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    // ~a
+    fn format_va(&self, _tkind: &TildeKind, buf: &mut String) -> Result<()> {
         buf.push_str(&format!("a: {}, b: {}", self.a, self.b));
         Ok(())
     }
-}
 
-impl TildeKindDigit for MyStruct {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
+    // ~d
+    fn format_digit(&self, _tkind: &TildeKind, buf: &mut String) -> Result<()> {
         buf.push_str(&format!("{}", self.a));
         Ok(())
     }
@@ -260,9 +239,9 @@ This is the table of which directives have been implemented:
 
 | tilde                     | rust type                                                                                    |
 |:-------------------------:|:--------------------------------------------------------------------------------------------:|
-| `~a`                      | f32, f64, char, i8, i16, i32, i64, i128, isize, bool, u8, u16, u32, u64, u128, usize, String |
-| `~s`                      | f32, f64, char, i32, i64, usize, bool, u32, u64, String                                      |
+| `~a`                      | f32, f64, char, i8, i16, i32, i64, i128, isize, bool, u8, u16, u32, u64, u128, usize, String, &str, Vec<T>, &[T] |
+| `~s`                      | f32, f64, char, i8, i16, i32, i64, i128, isize, bool, u8, u16, u32, u64, u128, usize, String, &str |
 | `~d`                      | i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, usize, isize                               |
 | `~C`                      | char                                                                                         |
-| `~[~]` (normal condition) | bool, usize                                                                                  |
+| `~[~]` (normal condition) | bool, usize, Option<T>                                                                       |
 | `~R`                      | i8, i16, i32, i64, i128, u8, u16, u32, u64, u128, usize, isize                               |

@@ -171,6 +171,58 @@
 | bench_cl_format_making_loop_empty_string       | 49.516 ns |
 | bench_cl_format_macro_making_loop_string       | 468.87 ns |
 
+**10/17/2026 - Step 9 (Arch #1, #3, #7): Single-stage `TildeAble` dispatch, generic `Vec<T>`/`&[T]`/`Option<T>`/`&str`, and `SliceArgs` cursor**
+> Collapsed the 12 generated `TildeKind*` traits into `format_*` methods directly on `TildeAble` (eliminating double vtable lookup per directive), added generic `TildeAble` implementations for `Vec<T>`, `[T]`, `[T; N]`, `Option<T>`, `str`, and `&T` using a zero-allocation `SliceArgs` cursor instead of `Args::from(self.as_slice())`, and removed unused nightly feature flags.
+
+| benchmark names                                | results   |
+|------------------------------------------------|-----------|
+| bench_cl_format_reveal_single_a                | 30.692 ns |
+| bench_cl_format_making_loop_string             | 101.68 ns |
+| bench_normal_making_loop_string                | 59.354 ns |
+| bench_cl_format_macro_making_loop_empty_string | 408.09 ns |
+| bench_normal_making_loop_empty_string          | 12.712 ns |
+| bench_cl_format_making_loop_empty_string       | 45.670 ns |
+| bench_cl_format_macro_making_loop_string       | 467.96 ns |
+
+**10/17/2026 - Step 10 (Arch #2, #6): Separate `ArgCursor` from `TildeAble`, remove `TildeNil`, and propagate `~^` via `ControlFlow<()>`**
+> Extracted `ArgCursor` trait (`type Item: TildeAble + ?Sized`) implemented for `Args` and `SliceArgs<T>`, so `TildeKind::match_reveal` and `reveal_loop` operate generically on `C: ArgCursor` without dynamic dispatch through `<Args as TildeAble>`, removed `TildeNil`, and returned `ControlFlow<()>` to support `~^` (`LoopEnd`) inside nested conditionals.
+
+| benchmark names                                | results   |
+|------------------------------------------------|-----------|
+| bench_cl_format_reveal_single_a                | 30.640 ns |
+| bench_cl_format_making_loop_string             | 81.074 ns |
+| bench_normal_making_loop_string                | 58.467 ns |
+| bench_cl_format_macro_making_loop_empty_string | 460.28 ns |
+| bench_normal_making_loop_empty_string          | 12.555 ns |
+| bench_cl_format_making_loop_empty_string       | 40.894 ns |
+| bench_cl_format_macro_making_loop_string       | 505.59 ns |
+
+**10/17/2026 - Step 11 (Arch #4): Zero-copy AST (`Tilde<'a>`, `TildeKind<'a>`) & zero-allocation parser**
+> Changed `TildeKind::Text(&'a str)`, `TildeKind::Float(Option<&'a str>)`, and `TildeKind::Digit(Option<&'a str>)` to borrow slices directly from the input control string instead of allocating `String`s, and replaced `Cursor::read`/`seek` and `parse_radix` heap allocations with direct byte-slice matching.
+
+| benchmark names                                | results   |
+|------------------------------------------------|-----------|
+| bench_cl_format_reveal_single_a                | 30.814 ns |
+| bench_cl_format_making_loop_string             | 82.480 ns |
+| bench_normal_making_loop_string                | 58.974 ns |
+| bench_cl_format_macro_making_loop_empty_string | 322.39 ns |
+| bench_normal_making_loop_empty_string          | 12.561 ns |
+| bench_cl_format_making_loop_empty_string       | 41.537 ns |
+| bench_cl_format_macro_making_loop_string       | 365.28 ns |
+
+**10/17/2026 - Step 12 (Arch #5): Per-call-site `OnceLock<ControlStr<'static>>` caching for literal control strings in `cl_format!`**
+> Added literal pattern arms in `cl_format!` that cache the parsed `ControlStr<'static>` in a call-site `static OnceLock`, eliminating repeated runtime control-string parsing when `cl_format!` is invoked with a string literal.
+
+| benchmark names                                | results   |
+|------------------------------------------------|-----------|
+| bench_cl_format_reveal_single_a                | 30.928 ns |
+| bench_cl_format_making_loop_string             | 81.351 ns |
+| bench_normal_making_loop_string                | 59.443 ns |
+| bench_cl_format_macro_making_loop_empty_string | 30.729 ns |
+| bench_normal_making_loop_empty_string          | 12.444 ns |
+| bench_cl_format_making_loop_empty_string       | 41.194 ns |
+| bench_cl_format_macro_making_loop_string       | 72.317 ns |
+
 ## flamegraph ##
 
 `sudo cargo flamegraph -o bench0_flamegraph.svg --bench bench0 -- --bench`

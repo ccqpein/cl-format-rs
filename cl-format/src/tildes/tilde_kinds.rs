@@ -70,9 +70,6 @@ pub enum StarKind {
     Skip,
 }
 
-#[derive(Debug)]
-pub(super) struct TildeNil;
-
 #[doc = "CharKind"]
 #[derive(Debug, PartialEq, Clone)]
 pub enum CharKind {
@@ -95,12 +92,12 @@ Each variant corresponds to a `format_<variant>` method on the `TildeAble` trait
 Check README for custom types.
 "]
 #[derive(Debug, PartialEq, TildeAble, Clone)]
-pub enum TildeKind {
+pub enum TildeKind<'a> {
     /// `~C` and `~:C`
     Char(CharKind),
 
     /// `~$`, `~5$`, and `~f`
-    Float(Option<String>),
+    Float(Option<&'a str>),
 
     /// Tilde R: Radix, [doc](http://www.lispworks.com/documentation/lw50/CLHS/Body/22_cba.htm)
     Radix(
@@ -115,7 +112,7 @@ pub enum TildeKind {
     ),
 
     /// `~d`, `~:d`, and `~:@d`
-    Digit(Option<String>),
+    Digit(Option<&'a str>),
 
     /// `~a`
     Va,
@@ -127,7 +124,7 @@ pub enum TildeKind {
     Standard,
 
     /// for loop expression
-    Loop((Vec<Tilde>, TildeLoopKind)),
+    Loop((Vec<Tilde<'a>>, TildeLoopKind)),
 
     /// for loop stop, `~^`
     LoopEnd,
@@ -136,44 +133,159 @@ pub enum TildeKind {
     Tildes(usize),
 
     /// `~[` and `~]` condition
-    Cond((Vec<Tilde>, TildeCondKind)),
+    Cond((Vec<Tilde<'a>>, TildeCondKind)),
 
     /// text inside the tilde
-    Text(String),
+    Text(&'a str),
 
     /// Vec of tildes
-    VecTilde(Vec<Tilde>),
+    VecTilde(Vec<Tilde<'a>>),
 }
 
-impl TildeKind {
-    pub fn match_reveal(&self, arg: &dyn TildeAble, buf: &mut String) -> Result<()> {
+impl<'a> TildeKind<'a> {
+    #[inline]
+    pub fn match_reveal<C: super::ArgCursor>(
+        &self,
+        args: &C,
+        buf: &mut String,
+    ) -> Result<std::ops::ControlFlow<()>> {
+        use std::ops::ControlFlow;
         match self {
-            TildeKind::Char(_) => arg.format_char(self, buf),
-            TildeKind::Float(_) => arg.format_float(self, buf),
-            TildeKind::Digit(_) => arg.format_digit(self, buf),
-            TildeKind::Va => arg.format_va(self, buf),
-            TildeKind::Loop(_) => arg.format_loop(self, buf),
-            TildeKind::LoopEnd => {
-                Err(TildeError::new(ErrorKind::RevealError, "loop end cannot reveal").into())
+            TildeKind::Char(_) => {
+                let a = args.pop().ok_or_else(|| {
+                    TildeError::new(ErrorKind::RevealError, "cannot reveal to Char")
+                })?;
+                a.format_char(self, buf)?;
+                Ok(ControlFlow::Continue(()))
+            }
+            TildeKind::Float(_) => {
+                let a = args.pop().ok_or_else(|| {
+                    TildeError::new(ErrorKind::RevealError, "cannot reveal to Float")
+                })?;
+                a.format_float(self, buf)?;
+                Ok(ControlFlow::Continue(()))
+            }
+            TildeKind::Digit(_) => {
+                let a = args.pop().ok_or_else(|| {
+                    TildeError::new(ErrorKind::RevealError, "cannot reveal to Digit")
+                })?;
+                a.format_digit(self, buf)?;
+                Ok(ControlFlow::Continue(()))
+            }
+            TildeKind::Va => {
+                let a = args.pop().ok_or_else(|| {
+                    TildeError::new(ErrorKind::RevealError, "cannot reveal to Va")
+                })?;
+                a.format_va(self, buf)?;
+                Ok(ControlFlow::Continue(()))
+            }
+            TildeKind::Standard => {
+                let a = args.pop().ok_or_else(|| {
+                    TildeError::new(ErrorKind::RevealError, "cannot reveal to Standard")
+                })?;
+                a.format_standard(self, buf)?;
+                Ok(ControlFlow::Continue(()))
+            }
+            TildeKind::Radix(_) => {
+                let a = args.pop().ok_or_else(|| {
+                    TildeError::new(ErrorKind::RevealError, "cannot reveal to Radix")
+                })?;
+                a.format_radix(self, buf)?;
+                Ok(ControlFlow::Continue(()))
+            }
+            TildeKind::Star(kind) => {
+                match kind {
+                    StarKind::Hop => {
+                        args.back();
+                    }
+                    StarKind::Skip => {
+                        args.pop();
+                    }
+                }
+                Ok(ControlFlow::Continue(()))
             }
             TildeKind::Tildes(n) => {
                 buf.extend(std::iter::repeat('~').take(*n));
-                Ok(())
+                Ok(ControlFlow::Continue(()))
             }
             TildeKind::Text(s) => {
                 buf.push_str(s);
-                Ok(())
+                Ok(ControlFlow::Continue(()))
+            }
+            TildeKind::LoopEnd => {
+                if args.left_count() == 0 {
+                    Ok(ControlFlow::Break(()))
+                } else {
+                    Ok(ControlFlow::Continue(()))
+                }
             }
             TildeKind::VecTilde(vv) => {
                 for v in vv {
-                    v.reveal(arg, buf)?;
+                    if v.reveal(args, buf)?.is_break() {
+                        return Ok(ControlFlow::Break(()));
+                    }
                 }
-                Ok(())
+                Ok(ControlFlow::Continue(()))
             }
-            TildeKind::Cond((_, _)) => arg.format_cond(self, buf),
-            TildeKind::Star(_) => arg.format_star(self, buf),
-            TildeKind::Standard => arg.format_standard(self, buf),
-            TildeKind::Radix(_) => arg.format_radix(self, buf),
+            TildeKind::Loop((vv, kind)) => match kind {
+                TildeLoopKind::Nil | TildeLoopKind::NilColon => {
+                    let a = args.pop().ok_or_else(|| {
+                        TildeError::new(ErrorKind::FormatError, "run out args")
+                    })?;
+                    a.format_loop(self, buf)?;
+                    Ok(ControlFlow::Continue(()))
+                }
+                TildeLoopKind::At => {
+                    super::reveal_loop(vv, args, buf)?;
+                    Ok(ControlFlow::Continue(()))
+                }
+            },
+            TildeKind::Cond((vv, kind)) => match kind {
+                TildeCondKind::Sharp => {
+                    let l = args.left_count();
+                    if l >= vv.len() {
+                        vv[vv.len() - 1].reveal(args, buf)
+                    } else {
+                        vv[l].reveal(args, buf)
+                    }
+                }
+                TildeCondKind::Nil(has_default) => {
+                    let a = args.pop().ok_or_else(|| {
+                        TildeError::new(ErrorKind::FormatError, "run out args")
+                    })?;
+                    let idx = a.as_cond_index().ok_or_else(|| {
+                        TildeError::new(ErrorKind::RevealError, "cannot reveal to Cond")
+                    })?;
+                    match vv.get(idx) {
+                        Some(tt) => tt.reveal(args, buf),
+                        None if *has_default => match vv.last() {
+                            Some(tt) => tt.reveal(args, buf),
+                            None => Ok(ControlFlow::Continue(())),
+                        },
+                        None => Ok(ControlFlow::Continue(())),
+                    }
+                }
+                TildeCondKind::Colon => {
+                    let a = args.pop().ok_or_else(|| {
+                        TildeError::new(ErrorKind::FormatError, "run out args")
+                    })?;
+                    let b = a.as_cond_bool().ok_or_else(|| {
+                        TildeError::new(ErrorKind::RevealError, "cannot reveal to Cond")
+                    })?;
+                    let idx = usize::from(b);
+                    let tt = vv.get(idx).ok_or_else(|| {
+                        TildeError::new(ErrorKind::FormatError, "cannot get tilde")
+                    })?;
+                    tt.reveal(args, buf)
+                }
+                TildeCondKind::At => {
+                    let a = args.pop().ok_or_else(|| {
+                        TildeError::new(ErrorKind::FormatError, "run out args")
+                    })?;
+                    a.format_cond(self, buf)?;
+                    Ok(ControlFlow::Continue(()))
+                }
+            },
         }
     }
 }

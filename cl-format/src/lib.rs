@@ -303,22 +303,44 @@ assert_eq!(String::from("1, 2, 3, and 4"), a.unwrap());
 ```"#]
 #[macro_export]
 macro_rules! cl_format {
-	($control_str:expr) =>	{
-		{
-			let c = cl_format::ControlStr::new($control_str).expect("making control string has issue");
-			let a = cl_format::Args::new_cow(&[]);
-			c.reveal(a)
-		}
-	};
-    ($control_str:expr, $($ele:expr),*) =>	{
-		{
-			let c = cl_format::ControlStr::new($control_str).expect("making control string has issue");
-			let arr = [$(tilde!($ele)),*];
-			let a = cl_format::Args::new_cow(&arr);
-			c.reveal(a)
-		}
-	}
-
+    ($control_str:literal) => {
+        {
+            static __CL_FORMAT_CS: std::sync::OnceLock<cl_format::ControlStr<'static>> =
+                std::sync::OnceLock::new();
+            let c = __CL_FORMAT_CS.get_or_init(|| {
+                cl_format::ControlStr::new($control_str).expect("making control string has issue")
+            });
+            let a = cl_format::Args::new_cow(&[]);
+            c.reveal(a)
+        }
+    };
+    ($control_str:literal, $($ele:expr),*) => {
+        {
+            static __CL_FORMAT_CS: std::sync::OnceLock<cl_format::ControlStr<'static>> =
+                std::sync::OnceLock::new();
+            let c = __CL_FORMAT_CS.get_or_init(|| {
+                cl_format::ControlStr::new($control_str).expect("making control string has issue")
+            });
+            let arr = [$(tilde!($ele)),*];
+            let a = cl_format::Args::new_cow(&arr);
+            c.reveal(a)
+        }
+    };
+    ($control_str:expr) => {
+        {
+            let c = cl_format::ControlStr::new($control_str).expect("making control string has issue");
+            let a = cl_format::Args::new_cow(&[]);
+            c.reveal(a)
+        }
+    };
+    ($control_str:expr, $($ele:expr),*) => {
+        {
+            let c = cl_format::ControlStr::new($control_str).expect("making control string has issue");
+            let arr = [$(tilde!($ele)),*];
+            let a = cl_format::Args::new_cow(&arr);
+            c.reveal(a)
+        }
+    };
 }
 
 #[cfg(test)]

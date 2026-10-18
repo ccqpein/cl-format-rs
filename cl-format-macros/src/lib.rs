@@ -97,6 +97,12 @@ pub fn derive_tilde_able(input: TokenStream) -> TokenStream {
             let all_vars = variants.iter().map(|var| parse_variant_attrs(var));
 
             all_vars.for_each(|(field, _tys)| {
+                if matches!(
+                    field.as_str(),
+                    "Star" | "LoopEnd" | "Tildes" | "Text" | "VecTilde"
+                ) {
+                    return;
+                }
                 let fname = Ident::new(
                     &(String::from("format_") + &field.to_lowercase()),
                     Span::call_site(),
@@ -123,6 +129,12 @@ pub fn derive_tilde_able(input: TokenStream) -> TokenStream {
         pub trait TildeAble: Debug {
             fn len(&self) -> usize {
                 1
+            }
+            fn as_cond_index(&self) -> Option<usize> {
+                None
+            }
+            fn as_cond_bool(&self) -> Option<bool> {
+                None
             }
             #(#all_default_methods)*
         }

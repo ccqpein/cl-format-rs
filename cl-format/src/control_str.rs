@@ -14,7 +14,7 @@ Use `new(&str)` to create a ControlStr and reuse this control string instance to
 #[derive(Debug, Clone, PartialEq)]
 pub struct ControlStr<'a> {
     inner: &'a str,
-    tildes: Vec<((usize, usize), Tilde)>,
+    tildes: Vec<((usize, usize), Tilde<'a>)>,
 }
 
 impl<'a> ControlStr<'a> {
@@ -37,7 +37,9 @@ impl<'a> ControlStr<'a> {
 
         for (r, t) in &self.tildes {
             result.push_str(&self.inner[start..r.0]);
-            t.reveal(&args, &mut result)?;
+            if t.reveal(&args, &mut result)?.is_break() {
+                return Ok(result);
+            }
             start = r.1;
         }
 
@@ -46,7 +48,7 @@ impl<'a> ControlStr<'a> {
         Ok(result)
     }
 
-    fn scan(mut s: Cursor<&'_ str>) -> Result<Vec<((usize, usize), Tilde)>> {
+    fn scan(mut s: Cursor<&'a str>) -> Result<Vec<((usize, usize), Tilde<'a>)>> {
         let bytes = s.get_ref().as_bytes();
         let mut has_read_len = 0;
         let mut result = vec![];
@@ -95,7 +97,7 @@ mod tests {
     ) -> impl Iterator<Item = (&'x (usize, usize), Result<String>)> + 'x {
         cs.tildes.iter().map(|(ind, tilde)| {
             let mut b = String::new();
-            tilde.reveal(args, &mut b).unwrap();
+            let _ = tilde.reveal(args, &mut b).unwrap();
             (ind, Ok(b))
         })
     }
@@ -138,7 +140,7 @@ mod tests {
                 Tilde::new(
                     7,
                     TildeKind::Loop((
-                        vec![Tilde::new(3, TildeKind::Float(Some("5".to_string())))],
+                        vec![Tilde::new(3, TildeKind::Float(Some("5")))],
                         TildeLoopKind::Nil
                     ))
                 )

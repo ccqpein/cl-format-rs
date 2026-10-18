@@ -59,19 +59,14 @@ fn push_i128(n: i128, buf: &mut String) {
 //========================================
 // Loop helper
 //========================================
-pub(super) fn reveal_loop(vv: &[Tilde], args: &dyn TildeAble, buf: &mut String) -> Result<()> {
-    'a: loop {
+pub(super) fn reveal_loop<C: ArgCursor>(vv: &[Tilde], args: &C, buf: &mut String) -> Result<()> {
+    loop {
         for t in vv {
-            if let TildeKind::LoopEnd = t.value {
-                if args.len() != 0 {
-                    continue;
-                } else {
-                    break 'a;
-                }
+            if t.reveal(args, buf)?.is_break() {
+                return Ok(());
             }
-            t.reveal(args, buf)?;
         }
-        if args.len() == 0 {
+        if args.left_count() == 0 {
             break;
         }
     }
@@ -80,7 +75,7 @@ pub(super) fn reveal_loop(vv: &[Tilde], args: &dyn TildeAble, buf: &mut String) 
 }
 
 //========================================
-// TildeAble for char, String, str, bool, floats, TildeNil, ()
+// TildeAble for char, String, str, bool, floats, ()
 //========================================
 impl TildeAble for char {
     fn format_char(&self, tkind: &TildeKind, buf: &mut String) -> Result<()> {
@@ -145,6 +140,10 @@ impl TildeAble for String {
 }
 
 impl TildeAble for bool {
+    fn as_cond_bool(&self) -> Option<bool> {
+        Some(*self)
+    }
+
     fn format_va(&self, _: &TildeKind, buf: &mut String) -> Result<()> {
         if *self {
             buf.push_str("true");
@@ -156,31 +155,6 @@ impl TildeAble for bool {
 
     fn format_standard(&self, tkind: &TildeKind, buf: &mut String) -> Result<()> {
         self.format_va(tkind, buf)
-    }
-
-    fn format_cond(&self, tkind: &TildeKind, buf: &mut String) -> Result<()> {
-        match tkind {
-            TildeKind::Cond((vv, TildeCondKind::Colon)) => {
-                if *self {
-                    vv.get(1)
-                        .ok_or_else(|| {
-                            TildeError::new(ErrorKind::FormatError, "cannot get tilde")
-                        })?
-                        .reveal(&TildeNil, buf)?;
-
-                    Ok(())
-                } else {
-                    vv.get(0)
-                        .ok_or_else(|| {
-                            TildeError::new(ErrorKind::FormatError, "cannot get tilde")
-                        })?
-                        .reveal(&TildeNil, buf)?;
-
-                    Ok(())
-                }
-            }
-            _ => Err(TildeError::new(ErrorKind::RevealError, "cannot format to Cond").into()),
-        }
     }
 }
 
@@ -203,25 +177,6 @@ impl TildeAble for f64 {
 
     fn format_standard(&self, tkind: &TildeKind, buf: &mut String) -> Result<()> {
         self.format_va(tkind, buf)
-    }
-}
-
-impl TildeAble for TildeNil {
-    fn format_va(&self, _: &TildeKind, buf: &mut String) -> Result<()> {
-        buf.push_str("nil");
-        Ok(())
-    }
-
-    fn format_vectilde(&self, tkind: &TildeKind, buf: &mut String) -> Result<()> {
-        match tkind {
-            TildeKind::VecTilde(vv) => {
-                for v in vv {
-                    v.reveal(self, buf)?;
-                }
-                Ok(())
-            }
-            _ => Err(TildeError::new(ErrorKind::RevealError, "cannot format to VecTilde").into()),
-        }
     }
 }
 
@@ -750,6 +705,10 @@ macro_rules! impl_tilde_able_unsigned {
 impl_tilde_able_unsigned!(u8, u16, u32, u64);
 
 impl TildeAble for usize {
+    fn as_cond_index(&self) -> Option<usize> {
+        Some(*self)
+    }
+
     fn format_digit(&self, _: &TildeKind, buf: &mut String) -> Result<()> {
         push_u64(*self as u64, buf);
         Ok(())
@@ -767,35 +726,6 @@ impl TildeAble for usize {
 
     fn format_radix(&self, tkind: &TildeKind, buf: &mut String) -> Result<()> {
         format_radix_usize(*self, tkind, buf)
-    }
-
-    fn format_cond(&self, tkind: &TildeKind, buf: &mut String) -> Result<()> {
-        match tkind {
-            TildeKind::Cond((vv, TildeCondKind::Nil(true))) => match vv.get(*self) {
-                Some(tt) => {
-                    tt.reveal(&TildeNil, buf)?;
-                    Ok(())
-                }
-                None => {
-                    let last = vv.len() - 1;
-                    match vv.get(last) {
-                        Some(tt) => {
-                            tt.reveal(&TildeNil, buf)?;
-                            Ok(())
-                        }
-                        None => Ok(()),
-                    }
-                }
-            },
-            TildeKind::Cond((vv, TildeCondKind::Nil(false))) => match vv.get(*self) {
-                Some(tt) => {
-                    tt.reveal(&TildeNil, buf)?;
-                    Ok(())
-                }
-                None => Ok(()),
-            },
-            _ => Err(TildeError::new(ErrorKind::RevealError, "cannot format to Cond").into()),
-        }
     }
 }
 

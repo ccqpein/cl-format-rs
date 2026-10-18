@@ -31,7 +31,7 @@ impl<'a, 'arg> Args<'a, 'arg> {
     }
 
     #[inline]
-    pub fn pop(&self) -> Option<&dyn TildeAble> {
+    pub fn pop(&self) -> Option<&'a dyn TildeAble> {
         let ind = self.ind.get();
         let r = self.inner.get(ind)?;
         self.ind.set(ind + 1);
@@ -39,7 +39,7 @@ impl<'a, 'arg> Args<'a, 'arg> {
     }
 
     #[inline]
-    pub fn back(&self) -> Option<&dyn TildeAble> {
+    pub fn back(&self) -> Option<&'a dyn TildeAble> {
         let i = match self.ind.get() {
             0 => return None,
             n => n - 1,
@@ -58,6 +58,79 @@ impl<'a, 'arg> Args<'a, 'arg> {
     #[inline]
     pub fn reset(&self) {
         self.ind.set(0);
+    }
+}
+
+/// Trait for argument cursors used during format string revealing.
+pub trait ArgCursor {
+    type Item: TildeAble + ?Sized;
+
+    fn pop(&self) -> Option<&Self::Item>;
+    fn back(&self) -> Option<&Self::Item>;
+    fn left_count(&self) -> usize;
+}
+
+impl<'a, 'arg> ArgCursor for Args<'a, 'arg> {
+    type Item = dyn TildeAble + 'a;
+
+    #[inline]
+    fn pop(&self) -> Option<&Self::Item> {
+        Args::pop(self)
+    }
+
+    #[inline]
+    fn back(&self) -> Option<&Self::Item> {
+        Args::back(self)
+    }
+
+    #[inline]
+    fn left_count(&self) -> usize {
+        Args::left_count(self)
+    }
+}
+
+/// Zero-allocation cursor over a homogeneous slice `&[T]` where `T: TildeAble`.
+#[derive(Debug)]
+pub struct SliceArgs<'a, T: TildeAble> {
+    slice: &'a [T],
+    ind: Cell<usize>,
+}
+
+impl<'a, T: TildeAble> SliceArgs<'a, T> {
+    #[inline]
+    pub fn new(slice: &'a [T]) -> Self {
+        Self {
+            slice,
+            ind: Cell::new(0),
+        }
+    }
+}
+
+impl<'a, T: TildeAble> ArgCursor for SliceArgs<'a, T> {
+    type Item = T;
+
+    #[inline]
+    fn pop(&self) -> Option<&Self::Item> {
+        let ind = self.ind.get();
+        let r = self.slice.get(ind)?;
+        self.ind.set(ind + 1);
+        Some(r)
+    }
+
+    #[inline]
+    fn back(&self) -> Option<&Self::Item> {
+        let i = match self.ind.get() {
+            0 => return None,
+            n => n - 1,
+        };
+        let r = self.slice.get(i)?;
+        self.ind.set(i);
+        Some(r)
+    }
+
+    #[inline]
+    fn left_count(&self) -> usize {
+        self.slice.len() - self.ind.get()
     }
 }
 
