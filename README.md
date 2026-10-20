@@ -25,7 +25,7 @@ Here are several pages for you to have a general idea if you are not familiar wi
 
 There are two ways to use this library. You can use the `cl_format!` macro, or generate the control string and format your arguments by yourself for more flexibility.
 
-First, add `cl-format = "0.2"` in your `Cargo.toml`.
+First, add `cl-format = "0"` in your `Cargo.toml`.
  
 ### Use macro ###
 
