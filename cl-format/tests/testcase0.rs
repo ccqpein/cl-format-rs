@@ -138,3 +138,41 @@ fn play_around_with_hands() {
         "print the list: <empty>;".to_string()
     );
 }
+
+#[test]
+fn test_tuple_args_and_heterogeneous_loops() {
+    // 1. Heterogeneous tuple used directly in ~{...~} without Vec<&dyn TildeAble>
+    let mixed = (1_i32, "two", 3.5_f64, true);
+    let a = cl_format!("~{~a~^, ~}", &mixed);
+    assert_eq!("1, two, 3.5, true", a.unwrap());
+
+    // 2. Heterogeneous tuple formatted via ~a
+    let a = cl_format!("tuple: ~a", &mixed);
+    assert_eq!("tuple: (1, \"two\", 3.5, true)", a.unwrap());
+
+    // 3. Heterogeneous tuple with conditional formatting inside ~{...~}
+    let a = cl_format!("~{~a~#[~;, and ~:;, ~]~}", &(10, "twenty", 30));
+    assert_eq!("10, twenty, and 30", a.unwrap());
+
+    // 4. Direct ControlStr::reveal_cursor with TupleArgs (zero dyn)
+    let cs = ControlStr::new("~a (~d) -> ~{~a~^/~}").unwrap();
+    let cursor = TupleArgs::new((&"item", &42_i32, &(1, "b", 3)));
+    assert_eq!("item (42) -> 1/b/3", cs.reveal_cursor(&cursor).unwrap());
+
+    // 5. Flat compile-time directives (star, radix, char, tilde)
+    let a = cl_format!(
+        "~a ~*~a ~:*~a | ~@R ~:R ~2R | ~C | ~1~",
+        &"first",
+        &"skipped",
+        &"second",
+        &4_i32,
+        &4_i32,
+        &5_i32,
+        &'Z'
+    );
+    assert_eq!(
+        "first second second | IV fourth 101 | Z | ~",
+        a.unwrap()
+    );
+}
+

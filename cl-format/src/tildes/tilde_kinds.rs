@@ -153,45 +153,27 @@ impl<'a> TildeKind<'a> {
         use std::ops::ControlFlow;
         match self {
             TildeKind::Char(_) => {
-                let a = args.pop().ok_or_else(|| {
-                    TildeError::new(ErrorKind::RevealError, "cannot reveal to Char")
-                })?;
-                a.format_char(self, buf)?;
+                args.pop_char(self, buf)?;
                 Ok(ControlFlow::Continue(()))
             }
             TildeKind::Float(_) => {
-                let a = args.pop().ok_or_else(|| {
-                    TildeError::new(ErrorKind::RevealError, "cannot reveal to Float")
-                })?;
-                a.format_float(self, buf)?;
+                args.pop_float(self, buf)?;
                 Ok(ControlFlow::Continue(()))
             }
             TildeKind::Digit(_) => {
-                let a = args.pop().ok_or_else(|| {
-                    TildeError::new(ErrorKind::RevealError, "cannot reveal to Digit")
-                })?;
-                a.format_digit(self, buf)?;
+                args.pop_digit(self, buf)?;
                 Ok(ControlFlow::Continue(()))
             }
             TildeKind::Va => {
-                let a = args.pop().ok_or_else(|| {
-                    TildeError::new(ErrorKind::RevealError, "cannot reveal to Va")
-                })?;
-                a.format_va(self, buf)?;
+                args.pop_va(self, buf)?;
                 Ok(ControlFlow::Continue(()))
             }
             TildeKind::Standard => {
-                let a = args.pop().ok_or_else(|| {
-                    TildeError::new(ErrorKind::RevealError, "cannot reveal to Standard")
-                })?;
-                a.format_standard(self, buf)?;
+                args.pop_standard(self, buf)?;
                 Ok(ControlFlow::Continue(()))
             }
             TildeKind::Radix(_) => {
-                let a = args.pop().ok_or_else(|| {
-                    TildeError::new(ErrorKind::RevealError, "cannot reveal to Radix")
-                })?;
-                a.format_radix(self, buf)?;
+                args.pop_radix(self, buf)?;
                 Ok(ControlFlow::Continue(()))
             }
             TildeKind::Star(kind) => {
@@ -200,7 +182,7 @@ impl<'a> TildeKind<'a> {
                         args.back();
                     }
                     StarKind::Skip => {
-                        args.pop();
+                        args.skip();
                     }
                 }
                 Ok(ControlFlow::Continue(()))
@@ -230,10 +212,7 @@ impl<'a> TildeKind<'a> {
             }
             TildeKind::Loop((vv, kind)) => match kind {
                 TildeLoopKind::Nil | TildeLoopKind::NilColon => {
-                    let a = args
-                        .pop()
-                        .ok_or_else(|| TildeError::new(ErrorKind::FormatError, "run out args"))?;
-                    a.format_loop(self, buf)?;
+                    args.pop_loop(self, buf)?;
                     Ok(ControlFlow::Continue(()))
                 }
                 TildeLoopKind::At => {
@@ -251,12 +230,7 @@ impl<'a> TildeKind<'a> {
                     }
                 }
                 TildeCondKind::Nil(has_default) => {
-                    let a = args
-                        .pop()
-                        .ok_or_else(|| TildeError::new(ErrorKind::FormatError, "run out args"))?;
-                    let idx = a.as_cond_index().ok_or_else(|| {
-                        TildeError::new(ErrorKind::RevealError, "cannot reveal to Cond")
-                    })?;
+                    let idx = args.pop_cond_index()?;
                     match vv.get(idx) {
                         Some(tt) => tt.reveal(args, buf),
                         None if *has_default => match vv.last() {
@@ -267,12 +241,7 @@ impl<'a> TildeKind<'a> {
                     }
                 }
                 TildeCondKind::Colon => {
-                    let a = args
-                        .pop()
-                        .ok_or_else(|| TildeError::new(ErrorKind::FormatError, "run out args"))?;
-                    let b = a.as_cond_bool().ok_or_else(|| {
-                        TildeError::new(ErrorKind::RevealError, "cannot reveal to Cond")
-                    })?;
+                    let b = args.pop_cond_bool()?;
                     let idx = usize::from(b);
                     let tt = vv.get(idx).ok_or_else(|| {
                         TildeError::new(ErrorKind::FormatError, "cannot get tilde")
@@ -280,10 +249,7 @@ impl<'a> TildeKind<'a> {
                     tt.reveal(args, buf)
                 }
                 TildeCondKind::At => {
-                    let a = args
-                        .pop()
-                        .ok_or_else(|| TildeError::new(ErrorKind::FormatError, "run out args"))?;
-                    a.format_cond(self, buf)?;
+                    args.pop_cond(self, buf)?;
                     Ok(ControlFlow::Continue(()))
                 }
             },

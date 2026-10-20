@@ -28,8 +28,14 @@ impl<'a> ControlStr<'a> {
 
     #[allow(dead_code)]
     #[doc = "Reveal arguments to string"]
+    #[inline]
     pub fn reveal<'s, 'arg>(&self, args: Args<'s, 'arg>) -> Result<String> {
-        //dbg!(self);
+        self.reveal_cursor(&args)
+    }
+
+    #[doc = "Reveal any ArgCursor (including TupleArgs or SliceArgs) to string"]
+    #[inline]
+    pub fn reveal_cursor<C: ArgCursor>(&self, args: &C) -> Result<String> {
         let mut start = 0;
         let end = self.inner.len();
 
@@ -37,7 +43,7 @@ impl<'a> ControlStr<'a> {
 
         for (r, t) in &self.tildes {
             result.push_str(&self.inner[start..r.0]);
-            if t.reveal(&args, &mut result)?.is_break() {
+            if t.reveal(args, &mut result)?.is_break() {
                 return Ok(result);
             }
             start = r.1;

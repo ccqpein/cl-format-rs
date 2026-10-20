@@ -1,82 +1,54 @@
-#![doc = r#"The macros here should auto generate several traits and the major TildeAble trait.
+#![doc = r#"Procedural macros for `cl-format`.
 
-For example:
+Provides two procedural macros:
 
-```rust
+1. `#[derive(TildeAble)]` on `TildeKind`: generates the `TildeAble` trait with default `format_<variant>` methods for each value-consuming directive variant.
+
+```rust,ignore
 #[derive(Debug, PartialEq, TildeAble)]
-pub enum TildeKind {
+pub enum TildeKind<'a> {
     /// ~C ~:C
-    #[implTo(char)]
-    Char,
+    Char(CharKind),
 
     /// ~$ ~5$ ~f
-    #[implTo(float)]
-    Float(Option<String>),
+    Float(Option<&'a str>),
 
     /// ~d ~:d ~:@d
-    Digit(Option<String>),
+    Digit(Option<&'a str>),
 
     /// ~a
-    #[implTo(float, char, String)]
     Va,
 
     /// loop
-    Loop(Vec<Tilde>),
+    Loop((Vec<Tilde<'a>>, TildeLoopKind)),
 
     /// text inside the tilde
-    Text(String),
+    Text(&'a str),
 
     /// vec
-    VecTilde(Vec<Tilde>),
+    VecTilde(Vec<Tilde<'a>>),
 }
 ```
 
-Will generate:
+which expands to:
 
-```rust
-/// all default method is return none.
-trait TildeAble {
-    fn len(&self) -> usize;
-    fn into_tildekind_char(&self) -> Option<&dyn TildeKindChar>{None}
-    fn into_tildekind_va(&self) -> Option<&dyn TildeKindVa>{None}
-    // and all other fields...
-}
+```rust,ignore
+pub trait TildeAble: Debug {
+    fn len(&self) -> usize { 1 }
+    fn as_cond_index(&self) -> Option<usize> { None }
+    fn as_cond_bool(&self) -> Option<bool> { None }
 
-impl TildeAble for char {
-    fn into_tildekind_char(&self) -> Option<&dyn TildeKindChar> {
-        Some(self)
+    fn format_char(&self, _tkind: &TildeKind, _buf: &mut String) -> Result<()> {
+        Err(TildeError::new(ErrorKind::RevealError, "cannot reveal to Char").into())
     }
-
-    fn into_tildekind_va(&self) -> Option<&dyn TildeKindVa> {
-        Some(self)
+    fn format_va(&self, _tkind: &TildeKind, _buf: &mut String) -> Result<()> {
+        Err(TildeError::new(ErrorKind::RevealError, "cannot reveal to Va").into())
     }
+    // ...and other format_<variant> methods
 }
-
-impl TildeAble for float {
-    fn into_tildekind_va(&self) -> Option<&dyn TildeKindVa> {
-        Some(self)
-    }
-}
-
-impl TildeAble for String {
-    fn into_tildekind_va(&self) -> Option<&dyn TildeKindVa> {
-        Some(self)
-    }
-}
-
-trait TildeKindChar {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
-        Err("un-implenmented yet".into())
-    }
-}
-
-trait TildeKindVa {
-    fn format(&self, tkind: &TildeKind, buf: &mut String) -> Result<(), TildeError> {
-        Err("un-implenmented yet".into())
-    }
-}
-
 ```
+
+2. `cl_format_compile_time!`: validates literal format strings and argument arity at compile time, expanding flat format strings into direct buffer writes and loop/conditional format strings into `OnceLock<ControlStr<'static>>` + `TupleArgs` dispatch.
 "#]
 
 use anyhow::Result;
@@ -173,6 +145,750 @@ fn get_types_impl_to(attribute: &Attribute) -> Result<impl Iterator<Item = Ident
     Ok(result.into_iter())
 }
 
+// ============================================================================
+// Compile-time format string parser, validator, and code generator
+// ============================================================================
+
+struct ClFormatInput {
+    control_str: syn::LitStr,
+    args: Vec<syn::Expr>,
+}
+
+impl syn::parse::Parse for ClFormatInput {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let control_str: syn::LitStr = input.parse()?;
+        let mut args = Vec::new();
+        while input.peek(syn::Token![,]) {
+            let _: syn::Token![,] = input.parse()?;
+            if input.is_empty() {
+                break;
+            }
+            args.push(input.parse()?);
+        }
+        Ok(Self { control_str, args })
+    }
+}
+
+#[derive(Debug, Clone)]
+enum CtRadixFlag {
+    At,
+    Colon,
+    AtColon,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum CtCondKind {
+    Nil(bool),
+    Sharp,
+    At,
+    Colon,
+}
+
+#[derive(Debug, Clone)]
+enum CtNode {
+    Text(String),
+    Va,
+    Standard,
+    Digit(Option<String>),
+    Float(String),
+    Char { is_at: bool },
+    Star { is_hop: bool },
+    Tildes(usize),
+    LoopEnd,
+    Radix {
+        radix: Option<u8>,
+        mincol: Option<usize>,
+        padchar: Option<char>,
+        commachar: Option<char>,
+        comma_interval: Option<usize>,
+        flag: Option<CtRadixFlag>,
+    },
+    Loop {
+        _body: Vec<CtNode>,
+        is_at: bool,
+    },
+    Cond {
+        clauses: Vec<Vec<CtNode>>,
+        kind: CtCondKind,
+    },
+}
+
+fn ct_scan_control_str(s: &str) -> std::result::Result<Vec<CtNode>, String> {
+    let bytes = s.as_bytes();
+    let mut pos = 0;
+    let mut nodes = Vec::new();
+
+    while let Some(rel) = bytes[pos..].iter().position(|&b| b == b'~') {
+        if rel > 0 {
+            nodes.push(CtNode::Text(s[pos..pos + rel].to_string()));
+        }
+        pos += rel;
+        let (node, len) = ct_parse_tilde(s, pos)?;
+        nodes.push(node);
+        pos += len;
+    }
+
+    if pos < bytes.len() {
+        nodes.push(CtNode::Text(s[pos..].to_string()));
+    }
+
+    Ok(nodes)
+}
+
+fn ct_parse_tilde(s: &str, start: usize) -> std::result::Result<(CtNode, usize), String> {
+    let bytes = &s.as_bytes()[start..];
+    if bytes.first() != Some(&b'~') {
+        return Err("should start with ~".to_string());
+    }
+
+    let mut offset = 1;
+    let mut escape = false;
+
+    while offset < bytes.len() {
+        let b = bytes[offset];
+        if b == 0 {
+            break;
+        }
+        offset += 1;
+        if !escape {
+            match &bytes[..offset] {
+                [.., b'\\'] => {
+                    escape = true;
+                    continue;
+                }
+                [.., b'a' | b'A'] => return Ok((CtNode::Va, offset)),
+                [.., b's' | b'S'] => return Ok((CtNode::Standard, offset)),
+                [.., b'd' | b'D'] => {
+                    let param = if offset > 2 {
+                        Some(s[start + 1..start + offset - 1].to_string())
+                    } else {
+                        None
+                    };
+                    return Ok((CtNode::Digit(param), offset));
+                }
+                [.., _, b'$'] | [.., b'$'] | [.., b'f' | b'F'] => {
+                    let param = if offset > 2 {
+                        s[start + 1..start + offset - 1].to_string()
+                    } else {
+                        String::new()
+                    };
+                    return Ok((CtNode::Float(param), offset));
+                }
+                [.., b'@', b'c' | b'C'] | [.., b'c' | b'C'] => {
+                    return match bytes {
+                        [b'~', b'@', b'c' | b'C', ..] => Ok((CtNode::Char { is_at: true }, 3)),
+                        [b'~', b'c' | b'C', ..] => Ok((CtNode::Char { is_at: false }, 2)),
+                        _ => Err("should start with ~c or ~@c".to_string()),
+                    };
+                }
+                [.., b':', b'*'] | [.., b'*'] => {
+                    return match bytes {
+                        [b'~', b':', b'*', ..] => Ok((CtNode::Star { is_hop: true }, 3)),
+                        [b'~', b'*', ..] => Ok((CtNode::Star { is_hop: false }, 2)),
+                        _ => Err("should start with ~* or ~:*".to_string()),
+                    };
+                }
+                [.., _, b'~'] => {
+                    return match bytes {
+                        [b'~', n @ b'0'..=b'9', b'~', ..] => {
+                            Ok((CtNode::Tildes((*n - b'0') as usize), 3))
+                        }
+                        _ => Err("should start with ~n~".to_string()),
+                    };
+                }
+                [.., b'^'] => {
+                    if bytes.get(..2) != Some(b"~^") {
+                        return Err("should start with ~^".to_string());
+                    }
+                    return Ok((CtNode::LoopEnd, 2));
+                }
+                [.., b'R' | b'r'] => return ct_parse_radix(s, start, offset),
+                [.., b'@', b'{'] | [.., b'{'] => return ct_parse_loop(s, start),
+                [.., b'#' | b':' | b'@', b'['] | [.., b'['] => return ct_parse_cond(s, start),
+                [.., b'%'] => {
+                    return Err(
+                        "Unsupport the last symbol of '%', try to use \\n instead".to_string()
+                    );
+                }
+                _ => {}
+            }
+        }
+        escape = false;
+    }
+
+    Err("unterminated or unknown ~ directive at end of control string".to_string())
+}
+
+fn ct_parse_radix(
+    s: &str,
+    start: usize,
+    total_len: usize,
+) -> std::result::Result<(CtNode, usize), String> {
+    let whole = &s[start + 1..start + total_len];
+
+    let parse_usize_helper = |a: &str| -> std::result::Result<Option<usize>, String> {
+        if a.is_empty() {
+            Ok(None)
+        } else {
+            a.parse::<usize>().map(Some).map_err(|e| e.to_string())
+        }
+    };
+
+    let parse_u8_helper = |a: &str| -> std::result::Result<Option<u8>, String> {
+        if a.is_empty() {
+            Ok(None)
+        } else {
+            a.parse::<u8>().map(Some).map_err(|e| e.to_string())
+        }
+    };
+
+    let parse_char_helper = |a: &str| -> std::result::Result<Option<char>, String> {
+        if a.is_empty() {
+            Ok(None)
+        } else {
+            Ok(a.chars().last())
+        }
+    };
+
+    let parse_radix_flag =
+        |a: &str| -> std::result::Result<(Option<usize>, Option<CtRadixFlag>), String> {
+            match a.split_once(':') {
+                Some(("", "R" | "r")) => Ok((None, Some(CtRadixFlag::Colon))),
+                Some(("", "@R" | "@r")) => Ok((None, Some(CtRadixFlag::AtColon))),
+                Some((n, "R" | "r")) => Ok((parse_usize_helper(n)?, Some(CtRadixFlag::Colon))),
+                None if a == "@R" || a == "@r" => Ok((None, Some(CtRadixFlag::At))),
+                None if a == "R" || a == "r" => Ok((None, None)),
+                None if a.ends_with('R') || a.ends_with('r') => {
+                    Ok((parse_usize_helper(&a[..a.len() - 1])?, None))
+                }
+                _ => Err(format!("Parsing the radix flag has problem: {}", a)),
+            }
+        };
+
+    let flag;
+    let radix;
+    let mut mincol = None;
+    let mut padchar = None;
+    let mut commachar = None;
+    let mut comma_interval = None;
+
+    let mut parts = whole.split(',');
+    let p0 = parts.next().unwrap_or("");
+    match (
+        parts.next(),
+        parts.next(),
+        parts.next(),
+        parts.next(),
+        parts.next(),
+    ) {
+        (None, None, None, None, None) => {
+            let pair = parse_radix_flag(p0)?;
+            (radix, flag) = (pair.0.map(|x| x as u8), pair.1);
+        }
+        (Some(p1), Some(p2), Some(p3), Some(p4), None) => {
+            radix = parse_u8_helper(p0)?;
+            mincol = parse_usize_helper(p1)?;
+            padchar = parse_char_helper(p2)?;
+            commachar = parse_char_helper(p3)?;
+            (comma_interval, flag) = parse_radix_flag(p4)?;
+        }
+        _ => {
+            return Err("The number of radix interval spaces should be 1 or 5".to_string());
+        }
+    }
+
+    Ok((
+        CtNode::Radix {
+            radix,
+            mincol,
+            padchar,
+            commachar,
+            comma_interval,
+            flag,
+        },
+        total_len,
+    ))
+}
+
+fn ct_parse_loop(s: &str, start: usize) -> std::result::Result<(CtNode, usize), String> {
+    let bytes = s.as_bytes();
+    let mut pos = start;
+    let is_at;
+    let mut total_len = 0;
+
+    match &bytes[pos..] {
+        [b'~', b'{', ..] => {
+            total_len += 2;
+            pos += 2;
+            is_at = false;
+        }
+        [b'~', b'@', b'{', ..] => {
+            total_len += 3;
+            pos += 3;
+            is_at = true;
+        }
+        _ => return Err("should start with ~{ or ~@{".to_string()),
+    }
+
+    let mut body = Vec::new();
+    loop {
+        match bytes[pos..].iter().position(|&b| b == b'~') {
+            Some(0) => {}
+            Some(rel) => {
+                body.push(CtNode::Text(s[pos..pos + rel].to_string()));
+                total_len += rel;
+                pos += rel;
+            }
+            None => {
+                return Err("unclosed ~{ loop: missing ~} or ~:}".to_string());
+            }
+        }
+
+        match &bytes[pos..] {
+            [b'~', b'}', ..] => {
+                return Ok((CtNode::Loop { _body: body, is_at }, total_len + 2));
+            }
+            [b'~', b':', b'}', ..] => {
+                return Ok((CtNode::Loop { _body: body, is_at }, total_len + 3));
+            }
+            _ => {}
+        }
+
+        let (next, len) = ct_parse_tilde(s, pos)?;
+        total_len += len;
+        pos += len;
+        body.push(next);
+    }
+}
+
+fn ct_parse_cond(s: &str, start: usize) -> std::result::Result<(CtNode, usize), String> {
+    let bytes = s.as_bytes();
+    let mut pos = start;
+    let mut total_len = 0;
+    let mut kind;
+
+    match &bytes[pos..] {
+        [b'~', b'[', ..] => {
+            total_len += 2;
+            pos += 2;
+            kind = CtCondKind::Nil(false);
+        }
+        [b'~', b'#', b'[', ..] => {
+            total_len += 3;
+            pos += 3;
+            kind = CtCondKind::Sharp;
+        }
+        [b'~', b'@', b'[', ..] => {
+            total_len += 3;
+            pos += 3;
+            kind = CtCondKind::At;
+        }
+        [b'~', b':', b'[', ..] => {
+            total_len += 3;
+            pos += 3;
+            kind = CtCondKind::Colon;
+        }
+        _ => return Err("should start with ~[, ~#[, ~@[, or ~:[".to_string()),
+    }
+
+    let mut cache = Vec::new();
+    let mut clauses = Vec::new();
+
+    loop {
+        if pos >= bytes.len() {
+            return Err("unclosed ~[ conditional: missing ~]".to_string());
+        }
+        match bytes[pos..].iter().position(|&b| b == b'~') {
+            Some(rel) => {
+                if rel > 0 {
+                    cache.push(CtNode::Text(s[pos..pos + rel].to_string()));
+                    total_len += rel;
+                }
+                let tilde_pos = pos + rel;
+                match bytes.get(tilde_pos + 1) {
+                    Some(&b':') if bytes.get(tilde_pos + 2) == Some(&b';') => {
+                        clauses.push(std::mem::take(&mut cache));
+                        if let CtCondKind::Nil(_) = kind {
+                            kind = CtCondKind::Nil(true);
+                        }
+                        total_len += 3;
+                        pos = tilde_pos + 3;
+                    }
+                    Some(&b';') => {
+                        clauses.push(std::mem::take(&mut cache));
+                        total_len += 2;
+                        pos = tilde_pos + 2;
+                    }
+                    Some(&b']') => {
+                        clauses.push(std::mem::take(&mut cache));
+                        total_len += 2;
+                        break;
+                    }
+                    Some(_) => {
+                        let (next, len) = ct_parse_tilde(s, tilde_pos)?;
+                        total_len += len;
+                        pos = tilde_pos + len;
+                        cache.push(next);
+                    }
+                    None => return Err("unterminated ~ inside ~[ conditional".to_string()),
+                }
+            }
+            None => return Err("unclosed ~[ conditional: missing ~]".to_string()),
+        }
+    }
+
+    if kind == CtCondKind::Colon && clauses.len() < 2 {
+        return Err("~:[ conditional requires two clauses separated by ~;".to_string());
+    }
+
+    Ok((CtNode::Cond { clauses, kind }, total_len))
+}
+
+struct ArityInfo {
+    min_args: usize,
+    exact_args: Option<usize>,
+    is_flat: bool,
+}
+
+/// Computes `(min_args, exact_args, is_flat)` for a sequence of AST nodes.
+fn compute_arity(nodes: &[CtNode]) -> std::result::Result<ArityInfo, String> {
+    let mut cur_idx: isize = 0;
+    let mut max_idx: usize = 0;
+    let mut min_before_dynamic: Option<usize> = None;
+    let mut is_flat = true;
+
+    for node in nodes {
+        match node {
+            CtNode::Text(_) | CtNode::Tildes(_) => {}
+            CtNode::Va
+            | CtNode::Standard
+            | CtNode::Digit(_)
+            | CtNode::Float(_)
+            | CtNode::Char { .. }
+            | CtNode::Radix { .. } => {
+                cur_idx += 1;
+                if (cur_idx as usize) > max_idx {
+                    max_idx = cur_idx as usize;
+                }
+            }
+            CtNode::Star { is_hop: false } => {
+                cur_idx += 1;
+                if (cur_idx as usize) > max_idx {
+                    max_idx = cur_idx as usize;
+                }
+            }
+            CtNode::Star { is_hop: true } => {
+                if min_before_dynamic.is_none() && cur_idx <= 0 {
+                    return Err("~:* cannot hop back before the first argument".to_string());
+                }
+                cur_idx -= 1;
+            }
+            CtNode::Loop { is_at: false, .. } => {
+                is_flat = false;
+                cur_idx += 1;
+                if (cur_idx as usize) > max_idx {
+                    max_idx = cur_idx as usize;
+                }
+            }
+            CtNode::Loop { is_at: true, .. } | CtNode::LoopEnd => {
+                is_flat = false;
+                if min_before_dynamic.is_none() {
+                    min_before_dynamic = Some(max_idx);
+                }
+            }
+            CtNode::Cond { clauses, kind } => {
+                is_flat = false;
+                match kind {
+                    CtCondKind::At => {
+                        // ~@[...~] pops 1 Option<T> from the outer cursor and runs clauses on a sub-cursor
+                        cur_idx += 1;
+                        if (cur_idx as usize) > max_idx {
+                            max_idx = cur_idx as usize;
+                        }
+                    }
+                    CtCondKind::Sharp => {
+                        if min_before_dynamic.is_none() {
+                            min_before_dynamic = Some(max_idx);
+                        }
+                    }
+                    CtCondKind::Colon => {
+                        // ~:[false~;true~] pops 1 bool and then runs one of the two clauses on outer cursor
+                        cur_idx += 1;
+                        if (cur_idx as usize) > max_idx {
+                            max_idx = cur_idx as usize;
+                        }
+                        let c0 = compute_arity(&clauses[0])?;
+                        let c1 = compute_arity(&clauses[1])?;
+                        match (c0.exact_args, c1.exact_args) {
+                            (Some(n0), Some(n1)) if n0 == n1 => {
+                                cur_idx += n0 as isize;
+                                if (cur_idx as usize) > max_idx {
+                                    max_idx = cur_idx as usize;
+                                }
+                            }
+                            _ => {
+                                if min_before_dynamic.is_none() {
+                                    min_before_dynamic =
+                                        Some(max_idx + c0.min_args.min(c1.min_args));
+                                }
+                            }
+                        }
+                    }
+                    CtCondKind::Nil(has_default) => {
+                        // ~[...~] pops 1 usize index and runs the selected clause on outer cursor
+                        cur_idx += 1;
+                        if (cur_idx as usize) > max_idx {
+                            max_idx = cur_idx as usize;
+                        }
+                        if *has_default && !clauses.is_empty() {
+                            let mut branch_exact = None;
+                            let mut all_same = true;
+                            let mut min_branch = usize::MAX;
+                            for cl in clauses {
+                                let info = compute_arity(cl)?;
+                                min_branch = min_branch.min(info.min_args);
+                                match (branch_exact, info.exact_args) {
+                                    (None, Some(n)) => branch_exact = Some(n),
+                                    (Some(prev), Some(n)) if prev == n => {}
+                                    _ => all_same = false,
+                                }
+                            }
+                            if all_same {
+                                if let Some(n) = branch_exact {
+                                    cur_idx += n as isize;
+                                    if (cur_idx as usize) > max_idx {
+                                        max_idx = cur_idx as usize;
+                                    }
+                                }
+                            } else if min_before_dynamic.is_none() {
+                                min_before_dynamic = Some(max_idx + min_branch);
+                            }
+                        } else if min_before_dynamic.is_none() {
+                            // Without a ~:; default clause, an out-of-range index selects no clause (0 args)
+                            min_before_dynamic = Some(max_idx);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    match min_before_dynamic {
+        Some(min_args) => Ok(ArityInfo {
+            min_args,
+            exact_args: None,
+            is_flat,
+        }),
+        None => Ok(ArityInfo {
+            min_args: max_idx,
+            exact_args: Some(max_idx),
+            is_flat,
+        }),
+    }
+}
+
+fn quote_opt<T: quote::ToTokens>(opt: &Option<T>) -> proc_macro2::TokenStream {
+    match opt {
+        Some(v) => quote!(Some(#v)),
+        None => quote!(None),
+    }
+}
+
+#[proc_macro]
+pub fn cl_format_compile_time(input: TokenStream) -> TokenStream {
+    let parsed = parse_macro_input!(input as ClFormatInput);
+    let s = parsed.control_str.value();
+    let span = parsed.control_str.span();
+
+    let nodes = match ct_scan_control_str(&s) {
+        Ok(nodes) => nodes,
+        Err(msg) => {
+            return syn::Error::new(span, format!("cl_format! syntax error: {}", msg))
+                .to_compile_error()
+                .into();
+        }
+    };
+
+    let arity = match compute_arity(&nodes) {
+        Ok(a) => a,
+        Err(msg) => {
+            return syn::Error::new(span, format!("cl_format! error: {}", msg))
+                .to_compile_error()
+                .into();
+        }
+    };
+
+    let num_args = parsed.args.len();
+    if let Some(exact) = arity.exact_args {
+        if num_args != exact {
+            return syn::Error::new(
+                span,
+                format!(
+                    "cl_format!: control string expects {} argument(s), but {} were provided",
+                    exact, num_args
+                ),
+            )
+            .to_compile_error()
+            .into();
+        }
+    } else if num_args < arity.min_args {
+        return syn::Error::new(
+            span,
+            format!(
+                "cl_format!: control string requires at least {} argument(s), but {} were provided",
+                arity.min_args, num_args
+            ),
+        )
+        .to_compile_error()
+        .into();
+    }
+
+    let args = &parsed.args;
+    let lit = &parsed.control_str;
+
+    // Fast Path 1: Flat control string (no loops or conditionals) -> inline direct formatting with zero AST/cursor/dyn!
+    if arity.is_flat {
+        let arg_idents: Vec<Ident> = (0..num_args)
+            .map(|i| Ident::new(&format!("__cl_arg_{}", i), Span::call_site()))
+            .collect();
+        let mut stmts = Vec::new();
+        let mut cur_idx: usize = 0;
+
+        for node in &nodes {
+            match node {
+                CtNode::Text(t) => {
+                    stmts.push(quote! { __buf.push_str(#t); });
+                }
+                CtNode::Tildes(n) => {
+                    let tilde_str = "~".repeat(*n);
+                    stmts.push(quote! { __buf.push_str(#tilde_str); });
+                }
+                CtNode::Star { is_hop: false } => {
+                    cur_idx += 1;
+                }
+                CtNode::Star { is_hop: true } => {
+                    cur_idx -= 1;
+                }
+                CtNode::Va => {
+                    let id = &arg_idents[cur_idx];
+                    cur_idx += 1;
+                    stmts.push(quote! {
+                        cl_format::TildeAble::format_va(&#id, &cl_format::TildeKind::Va, &mut __buf)?;
+                    });
+                }
+                CtNode::Standard => {
+                    let id = &arg_idents[cur_idx];
+                    cur_idx += 1;
+                    stmts.push(quote! {
+                        cl_format::TildeAble::format_standard(&#id, &cl_format::TildeKind::Standard, &mut __buf)?;
+                    });
+                }
+                CtNode::Digit(param) => {
+                    let id = &arg_idents[cur_idx];
+                    cur_idx += 1;
+                    let p_tok = quote_opt(param);
+                    stmts.push(quote! {
+                        cl_format::TildeAble::format_digit(&#id, &cl_format::TildeKind::Digit(#p_tok), &mut __buf)?;
+                    });
+                }
+                CtNode::Float(param) => {
+                    let id = &arg_idents[cur_idx];
+                    cur_idx += 1;
+                    stmts.push(quote! {
+                        cl_format::TildeAble::format_float(&#id, &cl_format::TildeKind::Float(Some(#param)), &mut __buf)?;
+                    });
+                }
+                CtNode::Char { is_at } => {
+                    let id = &arg_idents[cur_idx];
+                    cur_idx += 1;
+                    let ck = if *is_at {
+                        quote!(cl_format::CharKind::At)
+                    } else {
+                        quote!(cl_format::CharKind::Nil)
+                    };
+                    stmts.push(quote! {
+                        cl_format::TildeAble::format_char(&#id, &cl_format::TildeKind::Char(#ck), &mut __buf)?;
+                    });
+                }
+                CtNode::Radix {
+                    radix,
+                    mincol,
+                    padchar,
+                    commachar,
+                    comma_interval,
+                    flag,
+                } => {
+                    let id = &arg_idents[cur_idx];
+                    cur_idx += 1;
+                    let r_tok = quote_opt(radix);
+                    let m_tok = quote_opt(mincol);
+                    let p_tok = quote_opt(padchar);
+                    let c_tok = quote_opt(commachar);
+                    let ci_tok = quote_opt(comma_interval);
+                    let f_tok = match flag {
+                        Some(CtRadixFlag::At) => quote!(Some(cl_format::RadixFlag::At)),
+                        Some(CtRadixFlag::Colon) => quote!(Some(cl_format::RadixFlag::Colon)),
+                        Some(CtRadixFlag::AtColon) => quote!(Some(cl_format::RadixFlag::AtColon)),
+                        None => quote!(None),
+                    };
+                    stmts.push(quote! {
+                        cl_format::TildeAble::format_radix(
+                            &#id,
+                            &cl_format::TildeKind::Radix((#r_tok, #m_tok, #p_tok, #c_tok, #ci_tok, #f_tok)),
+                            &mut __buf,
+                        )?;
+                    });
+                }
+                CtNode::Loop { .. } | CtNode::Cond { .. } | CtNode::LoopEnd => unreachable!(),
+            }
+        }
+
+        let cap = s.len();
+        return quote! {
+            {
+                #( let #arg_idents = #args; )*
+                (|| -> cl_format::Result<String> {
+                    let mut __buf = String::with_capacity(#cap);
+                    #(#stmts)*
+                    Ok(__buf)
+                })()
+            }
+        }
+        .into();
+    }
+
+    // Fast Path 2: Loop/Conditional control string with <= 12 args -> OnceLock<ControlStr> + zero-dyn TupleArgs
+    if num_args <= 12 {
+        return quote! {
+            {
+                static __CL_FORMAT_CS: std::sync::OnceLock<cl_format::ControlStr<'static>> =
+                    std::sync::OnceLock::new();
+                let __c = __CL_FORMAT_CS.get_or_init(|| {
+                    cl_format::ControlStr::new(#lit).expect("making control string has issue")
+                });
+                let __args = cl_format::TupleArgs::new(( #(#args,)* ));
+                __c.reveal_cursor(&__args)
+            }
+        }
+        .into();
+    }
+
+    // Fallback for > 12 args
+    quote! {
+        {
+            static __CL_FORMAT_CS: std::sync::OnceLock<cl_format::ControlStr<'static>> =
+                std::sync::OnceLock::new();
+            let __c = __CL_FORMAT_CS.get_or_init(|| {
+                cl_format::ControlStr::new(#lit).expect("making control string has issue")
+            });
+            let __arr = [#(cl_format::tilde!(#args)),*];
+            let __a = cl_format::Args::new_cow(&__arr);
+            __c.reveal(__a)
+        }
+    }
+    .into()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -184,7 +900,6 @@ mod tests {
                 #[implTo(a,b,c,d)]
         };
 
-        //dbg!(test_case);
         assert_eq!(
             vec!["a", "b", "c", "d"]
                 .into_iter()
@@ -201,7 +916,6 @@ mod tests {
                 #[implTo(a)]
         };
 
-        //dbg!(test_case);
         assert_eq!(
             vec!["a"]
                 .into_iter()
@@ -224,7 +938,6 @@ mod tests {
             A
         };
 
-        //dbg!(test_case);
         let result = parse_variant_attrs(&test_case);
         assert_eq!(result.0, "A");
         assert_eq!(
@@ -235,12 +948,10 @@ mod tests {
                 .collect::<Vec<String>>(),
         );
 
-        //
         let test_case: Variant = parse_quote! {
             B
         };
 
-        //dbg!(&test_case);
         let mut result = parse_variant_attrs(&test_case);
         assert_eq!(result.0, "B");
         assert_eq!(result.1.next(), None);
@@ -249,15 +960,23 @@ mod tests {
     }
 
     #[test]
-    fn test_args_picker() -> Result<()> {
-        //let s: syn::Expr = syn::parse_str("a!(a1, &a2, a3)")?;
-        //let s: Punctuated<Expr, Token![,]> = syn::parse_str("a!(a1, &a2, a3)")?;
-        // let s: TokenStream = "a1, &a2, a3, [[&3]]".parse().unwrap();
-        // let items = Punctuated::<Expr, Token![,]>::parse_terminated
-        //     .parse(s.into())
-        //     .unwrap();
-        // dbg!(items);
+    fn test_ct_scan_and_arity() {
+        let nodes = ct_scan_control_str("~a, ~d, ~S").unwrap();
+        let arity = compute_arity(&nodes).unwrap();
+        assert_eq!(arity.exact_args, Some(3));
+        assert!(arity.is_flat);
 
-        Ok(())
+        let nodes = ct_scan_control_str("~@{~a~^, ~}").unwrap();
+        let arity = compute_arity(&nodes).unwrap();
+        assert_eq!(arity.exact_args, None);
+        assert_eq!(arity.min_args, 0);
+        assert!(!arity.is_flat);
+
+        let nodes =
+            ct_scan_control_str("~{~#[empty~;~a~;~a and ~a~:;~@{~a~#[~;, and ~:;, ~]~}~]~:}")
+                .unwrap();
+        let arity = compute_arity(&nodes).unwrap();
+        assert_eq!(arity.exact_args, Some(1));
+        assert!(!arity.is_flat);
     }
 }

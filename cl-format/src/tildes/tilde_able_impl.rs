@@ -864,6 +864,43 @@ impl<T: TildeAble, const N: usize> TildeAble for [T; N] {
     }
 }
 
+macro_rules! impl_tilde_able_tuple {
+    ($len:expr; $(($idx:tt, $T:ident)),+) => {
+        impl<$($T: TildeAble),+> TildeAble for ($($T,)+) {
+            fn len(&self) -> usize {
+                $len
+            }
+
+            fn format_va(&self, _tkind: &TildeKind, buf: &mut String) -> Result<()> {
+                write!(buf, "{:?}", self)
+                    .map_err(|e| TildeError::new(ErrorKind::FormatError, e.to_string()).into())
+            }
+
+            fn format_loop(&self, tkind: &TildeKind, buf: &mut String) -> Result<()> {
+                match tkind {
+                    TildeKind::Loop((vv, TildeLoopKind::Nil | TildeLoopKind::NilColon)) => {
+                        reveal_loop(vv, &TupleArgs::new(( $(&self.$idx,)+ )), buf)
+                    }
+                    _ => Err(TildeError::new(ErrorKind::RevealError, "cannot format Tuple to Loop").into()),
+                }
+            }
+        }
+    };
+}
+
+impl_tilde_able_tuple!(1; (0, T0));
+impl_tilde_able_tuple!(2; (0, T0), (1, T1));
+impl_tilde_able_tuple!(3; (0, T0), (1, T1), (2, T2));
+impl_tilde_able_tuple!(4; (0, T0), (1, T1), (2, T2), (3, T3));
+impl_tilde_able_tuple!(5; (0, T0), (1, T1), (2, T2), (3, T3), (4, T4));
+impl_tilde_able_tuple!(6; (0, T0), (1, T1), (2, T2), (3, T3), (4, T4), (5, T5));
+impl_tilde_able_tuple!(7; (0, T0), (1, T1), (2, T2), (3, T3), (4, T4), (5, T5), (6, T6));
+impl_tilde_able_tuple!(8; (0, T0), (1, T1), (2, T2), (3, T3), (4, T4), (5, T5), (6, T6), (7, T7));
+impl_tilde_able_tuple!(9; (0, T0), (1, T1), (2, T2), (3, T3), (4, T4), (5, T5), (6, T6), (7, T7), (8, T8));
+impl_tilde_able_tuple!(10; (0, T0), (1, T1), (2, T2), (3, T3), (4, T4), (5, T5), (6, T6), (7, T7), (8, T8), (9, T9));
+impl_tilde_able_tuple!(11; (0, T0), (1, T1), (2, T2), (3, T3), (4, T4), (5, T5), (6, T6), (7, T7), (8, T8), (9, T9), (10, T10));
+impl_tilde_able_tuple!(12; (0, T0), (1, T1), (2, T2), (3, T3), (4, T4), (5, T5), (6, T6), (7, T7), (8, T8), (9, T9), (10, T10), (11, T11));
+
 #[cfg(test)]
 mod tests {
     use super::*;
